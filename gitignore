@@ -1,0 +1,23 @@
+# ═══ الأسرار — لا تدخل git أبدًا ═══
+.env
+.env.*
+!.env.example
+
+# ═══ ما يُبنى أو يُنزَّل ═══
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# ═══ حالة محلية على الخادم ═══
+.state/
+backups/
+*.log
+
+# ═══ نظام التشغيل والمحرر ═══
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
