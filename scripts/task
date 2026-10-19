@@ -1,0 +1,252 @@
+#!/usr/bin/env bash
+# task — أمر إدارة نظام المهام على خادم التطوير.
+# يُثبَّت في /usr/local/bin/task بواسطة scripts/bootstrap.sh
+# كل الأوامر آمنة للتكرار.
+
+set -euo pipefail
+
+# اعثر على جذر المشروع (حتى لو شُغّل الأمر من أي مجلد)
+APP_DIR="${TASK_APP_DIR:-/home/devadmin/task-system}"
+[ -d "$APP_DIR" ] || APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+export APP_DIR
+# shellcheck source=lib.sh
+source "$APP_DIR/scripts/lib.sh"
+
+usage() {
+cat <<'EOF'
+task — إدارة نظام المهام
+
+  التشغيل والنشر
+    task deploy          سحب آخر كود + بناء + ترحيل قاعدة البيانات + تحقق   ← الأمر اليومي
+    task up / down       تشغيل / إيقاف الحاويات
+    task restart [خدمة]  إعادة تشغيل الكل أو خدمة واحدة
+    task build           إعادة بناء الصور بلا سحب
+
+  الفحص
+    task verify          فحص شامل (حاويات، منافذ، HTTPS، WAF، صحة التطبيق)
+    task status          حالة الحاويات باختصار
+    task logs [خدمة]     متابعة السجلات (Ctrl+C للخروج)
+    task doctor          تشخيص المشاكل الشائعة
+
+  قاعدة البيانات
+    task migrate         تطبيق ترحيلات Prisma
+    task seed            تعبئة البيانات التجريبية
+    task psql            جلسة psql داخل الحاوية
+    task backup          نسخة احتياطية الآن (مع تدوير 14 يومًا)
+    task restore <ملف>   استعادة نسخة
+
+  الإعداد
+    task env             توليد/إكمال الأسرار الناقصة في .env
+    task nginx           تطبيق إعداد nginx من قوالب المستودع
+    task deploy-key      توليد مفتاح نشر GitHub (للقراءة فقط) وطباعته
+    task phase <رقم>     تشغيل سكربت تهيئة مرحلة (مثال: task phase 1)
+    task harden --finish إغلاق المنفذ 22 بعد التأكد من الدخول على 2244
+EOF
+}
+
+# ───────── الأوامر ─────────
+
+cmd_env() {
+  say "فحص الأسرار في .env"
+  local added=0
+  env_ensure JWT_ACCESS_SECRET  "$(gen_secret)" && { ok "أُضيف JWT_ACCESS_SECRET";  added=1; }
+  env_ensure JWT_REFRESH_SECRET "$(gen_secret)" && { ok "أُضيف JWT_REFRESH_SECRET"; added=1; }
+  env_ensure NODE_ENV           "development"   && { ok "أُضيف NODE_ENV";           added=1; }
+  env_ensure WEB_PORT           "$WEB_PORT"     && { ok "أُضيف WEB_PORT";           added=1; }
+  env_ensure API_PORT           "$API_PORT"     && { ok "أُضيف API_PORT";           added=1; }
+  env_ensure PUBLIC_URL         "https://$DOMAIN" && { ok "أُضيف PUBLIC_URL";       added=1; }
+  chmod 600 "$ENV_FILE"
+  [ "$added" = 0 ] && ok "كل الأسرار موجودة — لم يتغيّر شيء"
+  grep -q '^DATABASE_URL=' "$ENV_FILE" || warn "DATABASE_URL غير موجود — تأكد من .env الأصلي"
+}
+
+cmd_migrate() {
+  svc_defined api || { warn "خدمة api غير معرّفة بعد — تخطّي الترحيل"; return 0; }
+  say "تطبيق ترحيلات Prisma"
+  dc exec -T api npx prisma migrate deploy
+  ok "الترحيلات مطبَّقة"
+}
+
+cmd_seed() {
+  svc_defined api || die "خدمة api غير معرّفة بعد"
+  say "تعبئة البيانات التجريبية"
+  dc exec -T api npx prisma db seed
+  ok "البيانات التجريبية جاهزة"
+}
+
+cmd_build() { compose_valid; say "بناء الصور"; dc build; }
+
+cmd_up() {
+  compose_valid
+  say "تشغيل الحاويات"
+  dc up -d --remove-orphans
+  local s
+  for s in postgres redis; do
+    svc_defined "$s" || continue
+    retry 30 2 svc_healthy "$s" || die "الخدمة $s لم تصبح جاهزة — اكتب: task logs $s"
+    ok "$s جاهزة"
+  done
+}
+
+cmd_down()    { say "إيقاف الحاويات"; dc down; }
+cmd_restart() { say "إعادة التشغيل"; dc restart ${1:+"$1"}; }
+cmd_status()  { dc ps --format "table {{.Service}}\t{{.Status}}\t{{.Ports}}"; }
+cmd_logs()    { dc logs -f --tail=120 ${1:+"$1"}; }
+cmd_psql()    { dc exec postgres psql -U "$(env_get POSTGRES_USER)" -d "$(env_get POSTGRES_DB)"; }
+
+cmd_deploy() {
+  say "النشر"
+  if git -C "$APP_DIR" remote get-url origin >/dev/null 2>&1; then
+    local before after
+    before="$(git -C "$APP_DIR" rev-parse HEAD)"
+    git -C "$APP_DIR" fetch --quiet origin
+    git -C "$APP_DIR" reset --hard "origin/$(git -C "$APP_DIR" rev-parse --abbrev-ref HEAD)" --quiet
+    after="$(git -C "$APP_DIR" rev-parse HEAD)"
+    if [ "$before" = "$after" ]; then ok "الكود محدَّث مسبقًا (${after:0:7})"
+    else ok "تحديث: ${before:0:7} ← ${after:0:7}"
+         git -C "$APP_DIR" log --oneline "$before..$after" | sed 's/^/    /'
+    fi
+  else
+    warn "لا يوجد remote — تخطّي السحب (اضبطه: task deploy-key)"
+  fi
+  compose_valid
+  dc up -d --build --remove-orphans
+  cmd_migrate
+  cmd_verify
+}
+
+cmd_backup() {
+  local dest day
+  day="$(date +%F-%H%M)"; dest="$APP_DIR/backups/$day"
+  mkdir -p "$dest"; chmod 700 "$APP_DIR/backups"
+  say "نسخة احتياطية → $dest"
+  dc exec -T postgres pg_dump -U "$(env_get POSTGRES_USER)" "$(env_get POSTGRES_DB)" | gzip > "$dest/db.sql.gz"
+  find "$APP_DIR/backups" -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null || true
+  ok "تمّت ($(du -h "$dest/db.sql.gz" | cut -f1))"
+}
+
+cmd_restore() {
+  local f="${1:-}"
+  [ -f "$f" ] || die "الاستخدام: task restore <مسار ملف .sql.gz>"
+  warn "ستُستبدل بيانات قاعدة التطوير الحالية."
+  read -r -p "اكتب yes للمتابعة: " a </dev/tty
+  [ "$a" = yes ] || die "أُلغي"
+  gunzip -c "$f" | dc exec -T postgres psql -U "$(env_get POSTGRES_USER)" -d "$(env_get POSTGRES_DB)"
+  ok "استُعيدت"
+}
+
+cmd_nginx() {
+  need_root
+  local tmpl="$APP_DIR/deploy/nginx/taskapp.conf.tmpl"
+  [ -f "$tmpl" ] || die "القالب غير موجود: $tmpl"
+  say "تطبيق إعداد nginx"
+  sed "s/__DOMAIN__/$DOMAIN/g; s/__WEB_PORT__/$WEB_PORT/g; s/__API_PORT__/$API_PORT/g" \
+      "$tmpl" > "$NGINX_SITE"
+  ln -sf "$NGINX_SITE" /etc/nginx/sites-enabled/taskapp
+  # استثناءات WAF للتطبيق — بين علامتين، تُستبدل كاملة في كل مرة
+  if [ -f "$APP_DIR/deploy/waf/task-exclusions.conf" ]; then
+    touch "$CRS_EXCLUSIONS"
+    sed -i '/==== نظام المهام: بداية ====/,/==== نظام المهام: نهاية ====/d' "$CRS_EXCLUSIONS"
+    cat "$APP_DIR/deploy/waf/task-exclusions.conf" >> "$CRS_EXCLUSIONS"
+  fi
+  nginx_apply
+}
+
+cmd_deploy_key() {
+  local key=~/.ssh/id_ed25519_task
+  if [ ! -f "$key" ]; then
+    say "توليد مفتاح نشر"
+    ssh-keygen -t ed25519 -N '' -C "task-system-deploy@$(hostname)" -f "$key" >/dev/null
+  fi
+  grep -q 'Host github.com-task' ~/.ssh/config 2>/dev/null || cat >> ~/.ssh/config <<EOF
+
+Host github.com-task
+    HostName github.com
+    User git
+    IdentityFile $key
+    IdentitiesOnly yes
+EOF
+  chmod 600 ~/.ssh/config
+  echo
+  ok "المفتاح العام — أضفه في GitHub:"
+  echo "   Settings ← Deploy keys ← Add deploy key   (اتركه بلا 'Allow write access')"
+  echo
+  cat "$key.pub"
+  echo
+  echo "ثم اربط المستودع:"
+  echo "   git -C $APP_DIR remote add origin git@github.com-task:<الحساب>/<المستودع>.git"
+  echo "   git -C $APP_DIR fetch origin && git -C $APP_DIR branch -u origin/main main"
+}
+
+cmd_harden() {
+  [ "${1:-}" = "--finish" ] || die "الاستخدام: sudo task harden --finish"
+  need_root
+  local port=2244
+  # لا نغلق 22 إلا بعد إثبات أنك متصل فعلًا عبر المنفذ الجديد
+  ss -tn state established "( sport = :$port )" | grep -q ":$port" \
+    || die "لا يوجد اتصال SSH قائم على المنفذ $port.
+   ادخل أولًا من جهازك:  ssh -p $port devadmin@<IP>   ثم أعد الأمر من تلك النافذة."
+  say "إغلاق المنفذ 22"
+  sed -i '/^# المنفذ 22 مؤقت/d; /^Port 22$/d' /etc/ssh/sshd_config.d/10-hardening.conf
+  sshd -t || die "إعداد SSH غير صالح — لم يُطبَّق"
+  systemctl daemon-reload
+  systemctl restart ssh.socket 2>/dev/null || true
+  systemctl restart ssh.service 2>/dev/null || true
+  ufw delete allow 22/tcp >/dev/null 2>&1 || true
+  ufw reload >/dev/null
+  sed -i "s/^port     = 22,$port$/port     = $port/" /etc/fail2ban/jail.d/task.local 2>/dev/null || true
+  fail2ban-client reload >/dev/null 2>&1 || systemctl restart fail2ban
+  echo hardened >> /etc/task-server-state
+  ok "اكتمل التحصين — الدخول الآن فقط عبر: ssh -p $port devadmin@<IP>"
+}
+
+cmd_phase() {
+  local p="${1:-}"
+  [ -n "$p" ] || die "الاستخدام: task phase 1"
+  local f
+  f="$(find "$APP_DIR/scripts/phases" -name "$(printf %02d "$p" 2>/dev/null||echo "$p")-*.sh" -print -quit 2>/dev/null || true)"
+  [ -n "$f" ] || die "لا يوجد سكربت للمرحلة '$p' في scripts/phases/"
+  say "تشغيل $(basename "$f")"
+  bash "$f" "${@:2}"
+}
+
+cmd_verify() { bash "$APP_DIR/scripts/verify.sh"; }
+
+cmd_doctor() {
+  say "تشخيص"
+  have docker || warn "docker غير مثبّت"
+  docker info >/dev/null 2>&1 || warn "لا صلاحية على docker — هل المستخدم في مجموعة docker؟ (أعد تسجيل الدخول)"
+  [ -f "$ENV_FILE" ] || warn ".env غير موجود — شغّل: task env"
+  [ "$(stat -c %a "$ENV_FILE" 2>/dev/null)" = 600 ] || warn "صلاحية .env ليست 600"
+  git -C "$APP_DIR" remote get-url origin >/dev/null 2>&1 || warn "لا يوجد remote لـ git — شغّل: task deploy-key"
+  [ -z "$(git -C "$APP_DIR" status --porcelain 2>/dev/null)" ] || warn "توجد تغييرات غير محفوظة في git"
+  systemctl is-active --quiet nginx || warn "nginx متوقف"
+  df -h "$APP_DIR" | awk 'NR==2 && $5+0>85 {print "! القرص ممتلئ: "$5}'
+  free -m | awk '/^Mem:/ && $7<200 {print "! الذاكرة المتاحة منخفضة: "$7"MB"}'
+  ok "انتهى التشخيص"
+}
+
+# ───────── التوجيه ─────────
+case "${1:-}" in
+  deploy)      shift; cmd_deploy "$@" ;;
+  up)          shift; cmd_up "$@" ;;
+  down)        shift; cmd_down "$@" ;;
+  restart)     shift; cmd_restart "${1:-}" ;;
+  build)       shift; cmd_build "$@" ;;
+  verify)      shift; cmd_verify "$@" ;;
+  status|ps)   shift; cmd_status "$@" ;;
+  logs)        shift; cmd_logs "${1:-}" ;;
+  doctor)      shift; cmd_doctor "$@" ;;
+  migrate)     shift; cmd_migrate "$@" ;;
+  seed)        shift; cmd_seed "$@" ;;
+  psql)        shift; cmd_psql "$@" ;;
+  backup)      shift; cmd_backup "$@" ;;
+  restore)     shift; cmd_restore "${1:-}" ;;
+  env)         shift; cmd_env "$@" ;;
+  nginx)       shift; cmd_nginx "$@" ;;
+  deploy-key)  shift; cmd_deploy_key "$@" ;;
+  phase)       shift; cmd_phase "$@" ;;
+  harden)      shift; cmd_harden "${1:-}" ;;
+  ''|-h|--help|help) usage ;;
+  *) die "أمر غير معروف: $1  (اكتب: task help)" ;;
+esac
