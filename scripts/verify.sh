@@ -24,17 +24,9 @@ soft() { # فحص لا يُفشل الإجمالي (ميزة قد لا تكون 
                 || echo -e "$(_c '1;33')—$(_c 0) $desc (لم يُبنَ بعد)"
 }
 
-say "1) الأمان على مستوى النظام"
-check "منفذ SSH"            "sshd -T 2>/dev/null | sed -n 's/^port //p' | head -1"
-check "دخول root معطّل"      "sshd -T 2>/dev/null | sed -n 's/^permitrootlogin //p'" "no"
-check "IPv6 معطّل"           "sysctl -n net.ipv6.conf.all.disable_ipv6" "1"
-check "الجدار الناري"        "ufw status 2>/dev/null | head -1 | awk '{print \$2}'" "active"
-check "الحصر الجغرافي"       "ipset list geo_sa 2>/dev/null | sed -n 's/^Number of entries: //p'"
-check "قواعد الحصر"          "iptables -L ufw-before-input -n 2>/dev/null | grep -c 'match-set geo_sa\|multiport'"
-check "fail2ban"             "fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:\t*//p'"
-echo
-echo "   المنافذ المكشوفة للخارج (يجب أن تكون 2244 و443 فقط):"
-ss -tlnH 2>/dev/null | awk '{print $4}' | grep -vE '^(127\.|\[::1\])' | sort -u | sed 's/^/     /'
+say "1) التحصين (scripts/00-server.sh --status)"
+if is_root; then bash "$APP_DIR/scripts/00-server.sh" --status || FAIL=1
+else warn "شغّل بـ sudo لفحص التحصين كاملًا (sudo task verify)"; fi
 
 say "2) الحاويات"
 if docker info >/dev/null 2>&1; then
@@ -61,15 +53,23 @@ check "الشهادة" "certbot certificates 2>/dev/null | sed -n 's/.*Expiry Da
 
 say "4) التطبيق"
 soft "صحة الـ API"  "curl -s --max-time 5 http://127.0.0.1:$API_PORT/api/v1/health 2>/dev/null | head -c 60"
-soft "واجهة الويب"  "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:$WEB_PORT/ 2>/dev/null"
+soft "واجهة الويب"  "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:$WEB_PORT/ 2>/dev/null | grep -v '^000'"
 
 say "5) الكود والأسرار"
-check "صلاحية .env"      "stat -c %a '$ENV_FILE' 2>/dev/null" "600"
-check ".env خارج git"    "git -C '$APP_DIR' check-ignore .env >/dev/null 2>&1 && echo yes" "yes"
-check "آخر commit"       "git -C '$APP_DIR' log --oneline -1 2>/dev/null"
-U="$(git -C "$APP_DIR" status --porcelain 2>/dev/null | wc -l)"
-[ "$U" = 0 ] && echo -e "$(_c '1;32')✓$(_c 0) لا تغييرات غير محفوظة" \
-             || echo -e "$(_c '1;33')!$(_c 0) $U ملفًا غير محفوظ في git"
+if [ -f "$ENV_FILE" ]; then
+  check "صلاحية .env"      "stat -c %a '$ENV_FILE' 2>/dev/null" "600"
+  check ".env خارج git"    "git -C '$APP_DIR' check-ignore .env >/dev/null 2>&1 && echo yes" "yes"
+else
+  echo -e "$(_c '1;33')—$(_c 0) .env غير موجود بعد (يُولَّد في المرحلة 1: task env)"
+fi
+if git -C "$APP_DIR" remote get-url origin >/dev/null 2>&1; then
+  check "آخر commit"       "git -C '$APP_DIR' log --oneline -1 2>/dev/null"
+  U="$(git -C "$APP_DIR" status --porcelain 2>/dev/null | wc -l)"
+  [ "$U" = 0 ] && echo -e "$(_c '1;32')✓$(_c 0) لا تغييرات غير محفوظة" \
+               || echo -e "$(_c '1;33')!$(_c 0) $U ملفًا غير محفوظ في git"
+else
+  echo -e "$(_c '1;33')—$(_c 0) المستودع غير مربوط بـ GitHub بعد (task deploy-key)"
+fi
 
 echo
 if [ "$FAIL" = 0 ]; then ok "كل الفحوص نجحت"; exit 0

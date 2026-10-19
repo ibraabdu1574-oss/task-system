@@ -41,6 +41,7 @@ task — إدارة نظام المهام
     task deploy-key      توليد مفتاح نشر GitHub (للقراءة فقط) وطباعته
     task phase <رقم>     تشغيل سكربت تهيئة مرحلة (مثال: task phase 1)
     task harden --finish إغلاق المنفذ 22 بعد التأكد من الدخول على 2244
+    task security        فحص التحصين فقط (sudo)
 EOF
 }
 
@@ -181,23 +182,7 @@ EOF
 cmd_harden() {
   [ "${1:-}" = "--finish" ] || die "الاستخدام: sudo task harden --finish"
   need_root
-  local port=2244
-  # لا نغلق 22 إلا بعد إثبات أنك متصل فعلًا عبر المنفذ الجديد
-  ss -tn state established "( sport = :$port )" | grep -q ":$port" \
-    || die "لا يوجد اتصال SSH قائم على المنفذ $port.
-   ادخل أولًا من جهازك:  ssh -p $port devadmin@<IP>   ثم أعد الأمر من تلك النافذة."
-  say "إغلاق المنفذ 22"
-  sed -i '/^# المنفذ 22 مؤقت/d; /^Port 22$/d' /etc/ssh/sshd_config.d/10-hardening.conf
-  sshd -t || die "إعداد SSH غير صالح — لم يُطبَّق"
-  systemctl daemon-reload
-  systemctl restart ssh.socket 2>/dev/null || true
-  systemctl restart ssh.service 2>/dev/null || true
-  ufw delete allow 22/tcp >/dev/null 2>&1 || true
-  ufw reload >/dev/null
-  sed -i "s/^port     = 22,$port$/port     = $port/" /etc/fail2ban/jail.d/task.local 2>/dev/null || true
-  fail2ban-client reload >/dev/null 2>&1 || systemctl restart fail2ban
-  echo hardened >> /etc/task-server-state
-  ok "اكتمل التحصين — الدخول الآن فقط عبر: ssh -p $port devadmin@<IP>"
+  bash "$APP_DIR/scripts/00-server.sh" --finish
 }
 
 cmd_phase() {
@@ -247,6 +232,7 @@ case "${1:-}" in
   deploy-key)  shift; cmd_deploy_key "$@" ;;
   phase)       shift; cmd_phase "$@" ;;
   harden)      shift; cmd_harden "${1:-}" ;;
+  security)    shift; need_root; bash "$APP_DIR/scripts/00-server.sh" --status ;;
   ''|-h|--help|help) usage ;;
   *) die "أمر غير معروف: $1  (اكتب: task help)" ;;
 esac
