@@ -1,0 +1,21 @@
+{
+  "name": "task-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "نظام إدارة المهام الداخلي — Monorepo",
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w packages/shared",
+    "dev:api": "npm run start:dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "test": "npm run test -w apps/api",
+    "test:e2e": "npm run test:e2e -w apps/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

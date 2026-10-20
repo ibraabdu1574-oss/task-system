@@ -1,0 +1,174 @@
+// مخطط قاعدة البيانات — المرحلة 1 (المستخدم، الهيكل، السعة، التدقيق)
+// بقية النماذج (المهام، الحالات، الانحراف…) تُضاف في مراحلها حسب PLAN.md القسم 5.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ceo
+  generalAdminManager
+  followUpOfficer
+  adminManager
+  supervisor
+  employee
+}
+
+enum AuthSource {
+  local
+  ldap
+}
+
+model User {
+  id                 String     @id @default(uuid())
+  name               String
+  employeeNo         String     @unique
+  email              String     @unique
+  passwordHash       String? // فارغ إذا كان مصدر الهوية LDAP
+  authSource         AuthSource @default(local)
+  role               Role
+  generalAdminId     String?
+  administrationId   String?
+  sectionId          String?
+  isActive           Boolean    @default(true)
+  failedLogins       Int        @default(0)
+  lockedUntil        DateTime?
+  passwordChangedAt  DateTime?
+  // ── التقاط مبكّر لمحرك الانحراف (القسم 9.1) — حقول فقط، بلا حساب في المرحلة 1 ──
+  dailyCapacityHours Float      @default(6)
+  workingDays        Int[]      @default([0, 1, 2, 3, 4]) // 0=الأحد … 4=الخميس
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  generalAdmin   GeneralAdministration? @relation("GAMembers", fields: [generalAdminId], references: [id], onDelete: SetNull)
+  administration Administration?        @relation("AdminMembers", fields: [administrationId], references: [id], onDelete: SetNull)
+  section        Section?               @relation("SectionMembers", fields: [sectionId], references: [id], onDelete: SetNull)
+
+  managedGeneralAdmins   GeneralAdministration[] @relation("GAManager")
+  managedAdministrations Administration[]        @relation("AdminManager")
+  supervisedSections     Section[]               @relation("SectionSupervisor")
+
+  refreshTokens     RefreshToken[]
+  passwordHistory   PasswordHistory[]
+  leaves            Leave[]
+  auditLogs         AuditLog[]
+
+  @@index([generalAdminId])
+  @@index([administrationId])
+  @@index([sectionId])
+  @@index([role])
+}
+
+/// آخر كلمات المرور — لمنع إعادة الاستخدام (PASSWORD_POLICY.historySize)
+model PasswordHistory {
+  id        String   @id @default(uuid())
+  userId    String
+  hash      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+/// رموز التحديث الدوّارة — نخزّن تجزئة الرمز لا الرمز نفسه
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  ip        String?
+  userAgent String?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model GeneralAdministration {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  managerId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  manager         User?            @relation("GAManager", fields: [managerId], references: [id], onDelete: SetNull)
+  administrations Administration[]
+  members         User[]           @relation("GAMembers")
+}
+
+model Administration {
+  id             String   @id @default(uuid())
+  generalAdminId String
+  name           String
+  managerId      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  generalAdmin GeneralAdministration @relation(fields: [generalAdminId], references: [id], onDelete: Restrict)
+  manager      User?                 @relation("AdminManager", fields: [managerId], references: [id], onDelete: SetNull)
+  sections     Section[]
+  members      User[]                @relation("AdminMembers")
+
+  @@unique([generalAdminId, name])
+  @@index([generalAdminId])
+}
+
+model Section {
+  id               String   @id @default(uuid())
+  administrationId String
+  name             String
+  supervisorId     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  administration Administration @relation(fields: [administrationId], references: [id], onDelete: Restrict)
+  supervisor     User?          @relation("SectionSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
+  members        User[]         @relation("SectionMembers")
+
+  @@unique([administrationId, name])
+  @@index([administrationId])
+}
+
+/// العطل الرسمية — تُستثنى من جدولة السعة (المرحلة 6)
+model Holiday {
+  id        String   @id @default(uuid())
+  date      DateTime @unique @db.Date
+  name      String
+  createdAt DateTime @default(now())
+}
+
+/// إجازات الموظف — تُستثنى من سعته وحده (المرحلة 6)
+model Leave {
+  id        String   @id @default(uuid())
+  userId    String
+  startAt   DateTime @db.Date
+  endAt     DateTime @db.Date
+  reason    String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  ip        String?
+  userAgent String?
+  timestamp DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([timestamp])
+  @@index([userId])
+  @@index([entity, entityId])
+}

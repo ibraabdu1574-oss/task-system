@@ -28,6 +28,9 @@ task — إدارة نظام المهام
     task logs [خدمة]     متابعة السجلات (Ctrl+C للخروج)
     task doctor          تشخيص المشاكل الشائعة
 
+  الاختبارات
+    task test            اختبارات الوحدة + التكامل داخل حاوية api
+
   قاعدة البيانات
     task migrate         تطبيق ترحيلات Prisma
     task seed            تعبئة البيانات التجريبية
@@ -56,9 +59,28 @@ cmd_env() {
   env_ensure WEB_PORT           "$WEB_PORT"     && { ok "أُضيف WEB_PORT";           added=1; }
   env_ensure API_PORT           "$API_PORT"     && { ok "أُضيف API_PORT";           added=1; }
   env_ensure PUBLIC_URL         "https://$DOMAIN" && { ok "أُضيف PUBLIC_URL";       added=1; }
+  env_ensure POSTGRES_USER      "taskapp"       && { ok "أُضيف POSTGRES_USER";      added=1; }
+  env_ensure POSTGRES_PASSWORD  "$(gen_secret)" && { ok "أُضيف POSTGRES_PASSWORD";  added=1; }
+  env_ensure POSTGRES_DB        "taskapp"       && { ok "أُضيف POSTGRES_DB";        added=1; }
+  env_ensure DATABASE_URL "postgresql://$(env_get POSTGRES_USER):$(env_get POSTGRES_PASSWORD)@postgres:5432/$(env_get POSTGRES_DB)?schema=public" \
+                                                && { ok "أُضيف DATABASE_URL";       added=1; }
+  env_ensure REDIS_URL          "redis://redis:6379" && { ok "أُضيف REDIS_URL";     added=1; }
+  env_ensure JWT_ACCESS_TTL     "15m"           && { ok "أُضيف JWT_ACCESS_TTL";     added=1; }
+  env_ensure JWT_REFRESH_TTL    "7d"            && { ok "أُضيف JWT_REFRESH_TTL";    added=1; }
+  env_ensure AUTH_SOURCE        "local"         && { ok "أُضيف AUTH_SOURCE";        added=1; }
+  env_ensure SEED_PASSWORD      "Dev-$(openssl rand -hex 6)-Aa1!" && { ok "أُضيف SEED_PASSWORD"; added=1; }
   chmod 600 "$ENV_FILE"
   [ "$added" = 0 ] && ok "كل الأسرار موجودة — لم يتغيّر شيء"
-  grep -q '^DATABASE_URL=' "$ENV_FILE" || warn "DATABASE_URL غير موجود — تأكد من .env الأصلي"
+  [ "$(env_get JWT_ACCESS_SECRET)" != "$(env_get JWT_REFRESH_SECRET)" ] || warn "JWT_ACCESS_SECRET يساوي JWT_REFRESH_SECRET — احذف أحدهما ثم: task env"
+}
+
+cmd_test() {
+  svc_defined api || die "خدمة api غير معرّفة بعد"
+  say "اختبارات الوحدة (RBAC)"
+  dc exec -T api npx jest
+  say "اختبارات التكامل (مصادقة/صلاحيات) — على قاعدة التطوير بعد البذرة"
+  dc exec -T api npm run -s test:e2e
+  ok "كل الاختبارات نجحت"
 }
 
 cmd_migrate() {
@@ -219,6 +241,7 @@ case "${1:-}" in
   restart)     shift; cmd_restart "${1:-}" ;;
   build)       shift; cmd_build "$@" ;;
   verify)      shift; cmd_verify "$@" ;;
+  test)        shift; cmd_test "$@" ;;
   status|ps)   shift; cmd_status "$@" ;;
   logs)        shift; cmd_logs "${1:-}" ;;
   doctor)      shift; cmd_doctor "$@" ;;

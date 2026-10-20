@@ -1,7 +1,7 @@
 # HANDOFF — نظام إدارة المهام الداخلي
 
 > ملف التسليم بين المحادثات. **مخرجات كل محادثة = بذرة المحادثة التالية.**
-> **الإصدار 2.1 (2026-10-19)** — سكربت واحد لكل مرحلة · الكود عبر GitHub **بلا git على ويندوز** · الجوال عبر **PWA**.
+> **الإصدار 2.3 (2026-10-20)** — **كود المرحلة 1 مكتوب ومسلَّم** (Monorepo + Prisma + مصادقة + RBAC هرمي + هيكل + سعة + تدقيق + واجهة دخول/هيكل) · `01-foundation.sh` يبني ويرحّل ويبذر **ويشغّل الاختبارات داخل الحاويات** ثم يفحص القبول · بانتظار التشغيل على الخادم.
 
 ---
 
@@ -16,14 +16,14 @@
 
 ## 2. حالة المشروع الآن
 
-- **مكتمل:** التخطيط (`PLAN.md` إصدار 1.1) + النموذج البصري (`prototype.html`).
-- **الخادم:** ❌ **لا يوجد — حُذف الخادم السابق. نبدأ من خادم جديد.**
-- **الكود:** لا يوجد كود تطبيق بعد.
-- **الخطوة القادمة:** **المرحلة 0 — تجهيز الخادم** بسكربت واحد (القسم 7).
+- **مكتمل:** التخطيط (`PLAN.md` 1.2) + النموذج البصري (`prototype.html`) + **المرحلة 0** (خادم التطوير مجهّز ومحصّن).
+- **المرحلة 1 — مكتوبة بالكامل، لم تُشغَّل بعد على الخادم.** الكود في `apps/api` و`apps/web` و`packages/shared` + `docker-compose.yml` + `scripts/phases/01-foundation.sh` + تحديث `scripts/task` (`task env` صار يولّد كل أسرار المرحلة، وأُضيف `task test`).
+- **الخادم:** DigitalOcean، Ubuntu 24.04، النطاق **`iat.sa`**، الدخول `ssh -p 2244 devadmin@iat.sa`. `sudo task verify` ينجح (المرحلة 0). nginx يعرض الصفحة المؤقتة حتى يُشغَّل `sudo task phase 1`.
+- **الكود:** المستودع الخاص **`ibraabdu1574-oss/task-system`** مربوط بالخادم (`/home/devadmin/task-system`، فرع `main`) بمفتاح نشر للقراءة فقط. آخر commit مسجّل: `7380f4a` (قبل رفع المرحلة 1).
+- **`.env`:** يُولَّد كاملًا عند أول `sudo task phase 1` (قاعدة البيانات، JWT، `SEED_PASSWORD`).
+- **الخطوة القادمة:** رفع ملفات المرحلة 1 إلى GitHub ثم على الخادم: **`task deploy && sudo task phase 1`** (أو `sudo task phase 1` وحده — فهو يسحب الكود بنفسه). ثم إلصاق الناتج في محادثة جديدة إن فشل شيء، أو الانتقال إلى **المرحلة 2** (القسم 7.ج).
 
-> **ما تغيّر في الإصدار 2.0 ولماذا:** التنفيذ السابق كان بطيئًا لأن القاعدة كانت «خطوة واحدة في كل رسالة» — مهمة من 24 خطوة تحتاج 24 رسالة. ألغينا ذلك: الآن **كل مرحلة تُسلَّم كملفات + سكربت واحد يُنفَّذ مرة واحدة**.
-
----
+> **ما تغيّر في 2.3:** كود المرحلة 1 كُتب كاملًا. بيئة المساعد لم تستطع تثبيت حزم npm (سجل npm محجوب هناك)، فلم تُشغَّل الاختبارات قبل التسليم؛ **التعويض:** السكربت يشغّل داخل الحاويات `prisma validate` ثم فحص **مطابقة قاعدة البيانات للمخطط** (`prisma migrate diff --exit-code`) ثم `tsc` للـapi والـweb ثم **Jest** (وحدة RBAC) و**Supertest** (16 اختبار تكامل للمصادقة والصلاحيات) — فأي خطأ يظهر في أول تشغيل برسالة تقول ما العمل. ما تحقّقنا منه فعلًا قبل التسليم: SQL الترحيل طُبّق على PostgreSQL 16 حقيقي بنجاح، صلاحية YAML/JSON، وصياغة TypeScript والـbash.
 
 ## 3. أسلوب التنفيذ (القاعدة الحاكمة — حلّت محل «خطوة بخطوة»)
 
@@ -92,13 +92,14 @@
 | `task migrate` · `task seed` · `task psql` | قاعدة البيانات |
 | `task backup` · `task restore <ملف>` | النسخ الاحتياطي |
 | `task env` · `task nginx` · `task deploy-key` | الإعداد |
-| `sudo task harden --finish` | إغلاق المنفذ 22 بعد إثبات الدخول على 2244 |
+| `sudo task harden --finish` | إغلاق المنفذ 22 بعد إثبات الدخول على 2244 (يستدعي `00-server.sh --finish`) |
+| `sudo task security` | فحص التحصين فقط (`00-server.sh --status`) |
 
 ### 4.د هيكل السكربتات
 
 ```
 scripts/
-├─ 00-server.sh          تجهيز خادم كامل من الصفر (المرحلة 0)
+├─ 00-server.sh          تجهيز وتحصين الخادم (المرحلة 0): بلا خيار=المرحلة 1 · --finish · --status · --force
 ├─ lib.sh                دوال مشتركة: say/ok/die، idempotency، فحص الحاويات
 ├─ task                  أمر الإدارة (يُثبَّت في /usr/local/bin)
 ├─ bootstrap.sh          تهيئة المشروع على خادم جاهز
@@ -109,6 +110,25 @@ scripts/
 deploy/
 ├─ nginx/taskapp.conf.tmpl   قالب الموقع (توجيه + حدّ محاولات الدخول + WebSocket)
 └─ waf/task-exclusions.conf  استثناءات ModSecurity للتطبيق
+```
+
+### 4.هـ هيكل الكود (المرحلة 1)
+
+```
+package.json               npm workspaces: packages/shared · apps/api · apps/web
+docker-compose.yml         postgres:16 · redis:7 · api (3001) · web (3000) — كلها على 127.0.0.1
+packages/shared/src/       الأدوار والإجراءات والأنواع المشتركة + سياسات كلمة المرور والقفل (مصدر الحقيقة الوحيد)
+apps/api/                  NestJS — Dockerfile (hot reload) · prisma/ (schema + migrations + seed.ts) · test/ (e2e)
+  src/common/              guards (JwtAuth + Permissions) · interceptors (Audit) · decorators (@Public @Require @Audit @CurrentUser) · filter الأخطاء
+  src/modules/auth/        AuthStrategy مجرّدة → LocalStrategy (argon2id) · LdapStrategy مكان محجوز · JwtStrategy · تدوير refresh + كشف إعادة الاستخدام · قفل 5×15د · سياسة كلمات المرور + منع إعادة آخر 5
+  src/modules/rbac/        PermissionService — النطاق من موقع الفاعل في الشجرة، followUpOfficer يُوسَّع لإدارته، منع افتراضي (+ spec)
+  src/modules/org/         الهيكل: CRUD إدارات عامة/إدارات/أقسام + تعيين المدراء والمشرفين + /org/tree مقصورة على النطاق
+  src/modules/users/       المستخدمون ضمن النطاق + فكّ القفل + حقول السعة (dailyCapacityHours، workingDays)
+  src/modules/capacity/    العطل (CEO) والإجازات (ضمن النطاق) — التقاط فقط، بلا حساب
+  src/modules/audit/       سجل التدقيق (كل طلب معدِّل + أحداث المصادقة) · GET /audit للرئيس
+apps/web/                  Next.js 14 App Router + Tailwind — هوية prototype.html (رموز CSS، 3 أنماط، داكن، RTL)
+  src/app/ (login) · (app)/dashboard · (app)/org (شجرة + إنشاء/تعديل/حذف/تعيين حسب الصلاحية)
+  src/lib/api.ts (عميل + تجديد access تلقائي) · auth.tsx · theme.tsx
 ```
 
 ---
@@ -130,21 +150,35 @@ deploy/
 - **سياسة التخصيص:** المستوى 2 أساس؛ المستوى 3 جاهز للتفعيل لاحقًا؛ 4 و5 مستبعدان.
 - **النسخ والتصدير:** نسخة كاملة للنظام + تصدير بيانات ضمن نطاق الصلاحية (م6).
 - **الحجم:** ~150 مستخدمًا → خادم إنتاج واحد.
+- **(م1) حزمة `@task/shared`** تُبنى إلى `dist` وتُستهلك كحزمة عادية في الـapi والـweb؛ الحاويتان تبنيانها عند الإقلاع من المصدر المثبّت.
+- **(م1) الصور بـ `npm install` لا `npm ci`:** لا `package-lock.json` في المستودع بعد (لم يمكن توليده). عند استقرار الحزم: `docker compose exec api cat /app/package-lock.json` ← ارفعه إلى المستودع وبدّل Dockerfile إلى `npm ci`.
+- **(م1) hot reload:** تُربط مجلدات المصدر فقط (`src`، `prisma`، `test`) لا المجلد كله — حتى تبقى `node_modules` داخل الصورة وتتجدّد مع `task deploy`.
+- **(م1) الرموز في الواجهة:** access (15د) + refresh (7 أيام، دوّار، تجزئته فقط في DB، إعادة استخدام رمز مُبطَل تُنهي كل الجلسات) محفوظان في `localStorage` — مقبول للتطوير؛ يُراجَع مع CSP في مرحلة التصليب قبل الإنتاج.
+- **(م1) المسار المحمي بلا `@Require()` يُرفض** (403) — فلا يُنسى إعلان الصلاحية على مسار جديد. المسارات الذاتية تُعلَّم `@Require('self')`.
+- **(م1) الإجراءات:** `org.read/manage` · `users.read/manage` · `holidays.read/manage` · `leaves.read/manage` · `audit.read` · `self`. قاعدة الإدارة: الفاعل يدير وحدة **أدنى** من مستوى نطاقه فقط (المدير العام يدير إداراته لا إدارته العامة نفسها؛ الرئيس يدير الكل).
 
-### 5.أ التأمين المطبَّق على خادم التطوير (داخل `00-server.sh`)
+### 5.أ التأمين المطبَّق على خادم التطوير (`scripts/00-server.sh` — مطابق لمواصفات التحصين المعتمدة لدى المستخدم)
 
-SSH على **2244** (IPv4 فقط، بلا root، `AllowUsers devadmin`، 3 محاولات) · **IPv6 معطّل** بـ sysctl · **ufw** يمنع كل الوارد عدا 2244 و443 · **حصر جغرافي** للسعودية عبر ipset + قاعدتين في `before.rules` (تحميل عند الإقلاع قبل ufw + تحديث أسبوعي) · **fail2ban** بـ nftables (sshd + nginx-modsecurity + nginx-limit-req) · **Docker** مربوط بـ`127.0.0.1` في `daemon.json` (لأنه يتجاوز ufw) · **nginx** على 443 فقط مع `ssl_reject_handshake` للطلبات بعنوان IP · **WAF** ModSecurity v3 + OWASP CRS · **HTTPS** Let's Encrypt عبر DNS-01 (لا يحتاج المنفذ 80).
+- **SSH:** 2244، `AddressFamily inet`، بلا root، `AllowUsers devadmin`، 3 محاولات، ملف `sshd_config.d/10-hardening.conf` (10 ليُقرأ قبل cloud-init)، التطبيق عبر `daemon-reload` + `restart ssh.socket`. آخر خطوة في المرحلة 1.
+- **IPv6** معطّل بـ sysctl (لا GRUB) و`IPV6=yes` في ufw · **ufw** `ENABLED=yes` + enable، منع الوارد عدا 2244 و443، لا منفذ 80، بلا `from 0.0.0.0/0`.
+- **الحصر الجغرافي للسعودية:** ipset `geo_sa` (hash:net، 4096/65536) من ipdeny + iCloud Private Relay (SA) + `/etc/task-geo/allow-extra.txt`؛ تحقق (≥300 نطاق، CIDR صالح) ثم `ipset swap` ذري وحفظ على القرص؛ تحميل عند الإقلاع قبل ufw (`--boot`، المجموعة تُنشأ ولو فارغة)؛ تحديث أسبوعي الأحد 03:00 UTC. القاعدتان (ACCEPT لـ geo_sa ثم DROP) **آخر `ufw-before-input` قبل COMMIT** بوسم `task-geo`، مع `before.rules.bak` و`iptables-restore --test` و**تراجع تلقائي بعد 5 دقائق** (`systemd-run`) يُلغى في `--finish`. المنفذ 22 المؤقت غير محصور.
+- **fail2ban:** `nftables-multiport` (يعمل قبل ufw فيصيب المهاجم السعودي أيضًا)، 1h × تصاعد حتى أسبوع، سجون `sshd` (systemd) + `nginx-modsecurity` + `nginx-limit-req`، `fail2ban-client -t` واختبار حظر/فكّ لعنوان وهمي.
+- **Docker** على 127.0.0.1 في `daemon.json` (يتجاوز ufw) — واكتب `127.0.0.1:` صراحةً في كل `ports` داخل compose.
+- **nginx:** 443 فقط، `listen 443 ssl http2` (nginx 1.24 لا يعرف `http2 on;`)، `ssl_reject_handshake` للأسماء الأخرى، TLS 1.2/1.3، HSTS يوم (سنة للإنتاج)، `server_tokens off`. **WAF** ModSecurity v3 + OWASP CRS، الإعداد في `/etc/nginx/modsecurity.conf`، `SecRuleEngine On`، الاستثناءات في REQUEST-900 فقط، تدوير `modsec_audit.log` أسبوعيًا. الصفحة المؤقتة تخدم ملفًا (لا `return` — يتجاوز WAF).
+- **HTTPS:** Let's Encrypt عبر DNS-01 بمفتاح DigitalOcean (صلاحية `domain` فقط) في `/root/.secrets/certbot/` (700/600)، hook يعيد تحميل nginx.
+- **الإنتاج الداخلي:** `ENV=internal-prod CERT_FILE=… KEY_FILE=… INTERNAL_NETS=…` → بلا حصر جغرافي ولا certbot؛ السماح من الشبكات الداخلية فقط؛ `ignoreip` يشمل بوابات NAT؛ HSTS سنة.
+- **الطوارئ:** Recovery Console في DigitalOcean (لا Droplet Console — يمر عبر SSH فيُحجب). جدول الطوارئ في README.
 
-**درسان مكلفان من المرة السابقة:** تغيير منفذ SSH في Ubuntu 24.04 يمر بـ`ssh.socket` (`daemon-reload` + `restart ssh.socket`) · والمنفذ 22 يبقى مفتوحًا حتى **تثبت** أن 2244 يعمل (`task harden --finish` يفحص وجود اتصال قائم قبل أن يغلقه).
+**دروس المرحلة 1 (التسليم):** أطلب من المساعد دائمًا أن يبني سكربت المرحلة بحيث يشغّل `tsc` و`jest` و`e2e` داخل الحاويات قبل القبول — فبيئته قد لا تصل إلى سجل npm. · ترحيلات Prisma تُكتب يدويًا بنمط Prisma ثم يثبتها `migrate diff --exit-code` على الخادم. · سكربت المرحلة يعمل بـ sudo لكنه يسحب git بصفة مالك المجلد (`devadmin`) حتى لا تتلوّث ملفات `.git` بملكية root.
 
----
+**دروس المرحلة 0:** `grep` بلا نتائج داخل `pipefail` يُسقط العملية كلها → `|| true` · لا تُنشئ ipset بـ `-exist` إن اختلفت المعاملات عن مجموعة قائمة → افحص `ipset list -n` أولًا · nginx 1.24: `http2` داخل `listen` · عند حذف الخادم وإعادة إنشائه بنفس النطاق: `ssh-keygen -R "[iat.sa]:2244"` على ويندوز.
 
 ## 6. خريطة المراحل
 
 | # | المرحلة | المخرَج | الأمر |
 |---|---|---|---|
-| **0** | **تجهيز الخادم** | خادم مؤمَّن + HTTPS + WAF + Docker | `sudo bash scripts/00-server.sh` |
-| **1** | الأساس | Monorepo + مصادقة + هيكل تنظيمي + RBAC + حقول السعة | `sudo task phase 1` |
+| **0** | **تجهيز الخادم** ✅ منفَّذة | خادم مؤمَّن + HTTPS + WAF + Docker | `sudo bash scripts/00-server.sh` ثم `--finish` ثم `--status` |
+| **1** | الأساس 🟡 مكتوبة — بانتظار التشغيل | Monorepo + مصادقة + هيكل تنظيمي + RBAC + حقول السعة | `task deploy && sudo task phase 1` |
 | **2** | المهام | CRUD + إسناد متعدد + فرعية + تعليقات + مرفقات + الحجم والتوقيت | `sudo task phase 2` |
 | **3** | التصنيف والحالات | أنواع + حالات لكل إدارة + عرضي/دوري + الفتيل القصير + WorkLog مشتق | `sudo task phase 3` |
 | **4** | العروض | Kanban + قائمة + تقويم + فلاتر + WebSocket | `sudo task phase 4` |
@@ -160,20 +194,16 @@ SSH على **2244** (IPv4 فقط، بلا root، `AllowUsers devadmin`، 3 مح�
 
 ## 7. الـ prompts الجاهزة
 
-### 7.أ المرحلة 0 — تجهيز الخادم (ابدأ بها)
+### 7.أ المرحلة 0 — تجهيز الخادم ✅ (منفَّذة؛ للمرجع ولخادم جديد)
 
-> على خادم DigitalOcean جديد (Ubuntu 24.04)، بعد إنشاء النطاق في Networking ← Domains:
-> ```powershell
-> scp -r scripts deploy root@<IP>:/root/          # من مجلد المشروع على ويندوز
-> ssh root@<IP> "bash /root/scripts/00-server.sh"
-> ```
-> يسألك عن: النطاق · بريدك · كلمة مرور `devadmin` · مفتاح DigitalOcean API (صلاحية domain فقط).
-> بعد نجاحه: `ssh -p 2244 devadmin@<IP>` ثم `sudo task harden --finish` ثم `task deploy-key`.
+> 1) `scp -r scripts deploy root@<IP>:/root/` ثم `ssh root@<IP>` ثم `bash /root/scripts/00-server.sh` (يسأل: النطاق · البريد · كلمة مرور devadmin · توكن DO).
+> 2) من نافذة جديدة خلال 5 دقائق: `ssh -p 2244 devadmin@<IP>` ثم `sudo task harden --finish` ثم `sudo task verify`.
+> 3) ربط GitHub: `task deploy-key` ← أضف المفتاح في **Deploy keys** بلا كتابة ← `git -C ~/task-system remote add origin git@github.com-task:<حسابك>/task-system.git && git -C ~/task-system fetch origin && git -C ~/task-system reset --hard origin/main`.
 
-### 7.ب المرحلة 1 — الأساس
+### 7.ب المرحلة 1 — الأساس 🟡 (الكود مسلَّم؛ هذا الـprompt للمرجع)
 
 ```text
-مرفق PLAN.md (1.1) و HANDOFF.md (2.0) و prototype.html. الخادم جاهز (المرحلة 0 منفّذة).
+مرفق PLAN.md (1.2) و HANDOFF.md (2.2) و prototype.html. الخادم جاهز ومحصّن (المرحلة 0 منفّذة ومُتحقَّق منها بـ task verify) على iat.sa، والمستودع على GitHub.
 نبني المرحلة 1 فقط.
 
 التزم بقاعدة التنفيذ في القسم 3 من HANDOFF: اكتب كل الملفات دفعة واحدة، وأعطني أمر
@@ -195,6 +225,8 @@ SSH على **2244** (IPv4 فقط، بلا root، `AllowUsers devadmin`، 3 مح�
 - واجهات: تسجيل الدخول + شجرة الهيكل + تخطيط RTL/Dark — **بهوية prototype.html المرفق**.
 - سجل تدقيق (Interceptor) + اختبارات (Jest + Supertest) للمصادقة والصلاحيات.
 - وحدّث scripts/phases/01-foundation.sh ليطابق ما بنيته فعلًا.
+- سلّم الملفات في المحادثة مباشرة (zip عبر SendUserFile) لأرفعها من متصفح GitHub، ثم أمر واحد على الخادم: task deploy && sudo task phase 1.
+- السكربتات السابقة أخطأت لأنها لم تُجرَّب: افحص كل ملف إعداد بأداته (nginx -t، docker compose config، prisma validate) قبل تسليمه.
 
 قيود البيئة: أي منفذ حاوية على 127.0.0.1 فقط؛ الوصول الخارجي عبر nginx/443؛ لا تعطيل
 لـWAF (أي حجب خاطئ → استثناء محدّد في deploy/waf/task-exclusions.conf)؛ لا أسرار في git.
@@ -203,7 +235,37 @@ SSH على **2244** (IPv4 فقط، بلا root، `AllowUsers devadmin`، 3 مح�
 الخلفية؛ `task verify` ينجح بالكامل.
 ```
 
-### 7.ج قالب أي مرحلة تالية
+### 7.ج المرحلة 2 — المهام (الـprompt الجاهز)
+
+```text
+مرفق PLAN.md (1.2) و HANDOFF.md (2.3) و prototype.html. المرحلة 1 منفَّذة على iat.sa (sudo task phase 1 نجح
+و task verify ينجح). الكود على GitHub (ibraabdu1574-oss/task-system). نبني المرحلة 2 فقط.
+
+التزم بقاعدة التنفيذ (HANDOFF القسم 3): كل الملفات دفعة واحدة + أمر تشغيل واحد.
+ابنِ فوق ما في HANDOFF القسم 4.هـ (نفس الأنماط: @Require + PermissionService.assert في الخدمة، @Audit، DTOs بـ class-validator،
+الأنواع المشتركة في packages/shared، هوية prototype.html في الواجهة).
+
+المطلوب (PLAN القسم 18 — المرحلة 2):
+- Prisma: Task (ذاتية المرجع parentTaskId، priority، category عرضي/دوري، dueDate،
+  sizePreset + estimatedHours + startedAt + completedAt — التقاط مبكّر بلا محرك) + TaskAssignment متعدد الأنواع
+  + SizePresetConfig (افتراضي عام 4/16/40 ساعة، قابل للضبط لكل إدارة) + Comment + Attachment + TaskActivity (سجل نشاط المهمة).
+  ترحيل جديد في prisma/migrations (SQL يدوي بنمط Prisma — السكربت يفحص المطابقة بـ migrate diff).
+- API: CRUD للمهام ضمن النطاق (الموظف يرى المسند إليه فقط؛ مسؤول المتابعة كل مهام إدارته)، إسناد لعدة
+  جهات (مستخدم/قسم/إدارة/إدارة عامة)، مهام فرعية بإسناد مستقل، تعليقات، مرفقات (خارج الجذر العام، أسماء عشوائية،
+  تحقق نوع/حجم، فحص الصلاحية قبل التنزيل)، سجل نشاط لكل تغيير. إجراءات جديدة في shared: tasks.read/create/update/assign/comment/attach.
+- الواجهة: قائمة المهام (فلاتر أساسية) + صفحة تفاصيل المهمة (الإسناد، الفرعية، المرفقات، التعليقات، سجل النشاط)
+  + نموذج مهمة جديدة باختيار الحجم — بهوية prototype.html (#page-tasks، #page-task، #page-new).
+- اختبارات: وحدة لنطاق رؤية المهام + e2e لإسناد متعدد وفرعية وصلاحيات التعليق/المرفق.
+- استثناء WAF محدّد لرفع المرفقات إن حُجب (deploy/waf/task-exclusions.conf — القاعدة 9000110 موجودة).
+- scripts/phases/02-tasks.sh على غرار 01-foundation.sh (ترحيل + بذرة مهام تجريبية + tsc + jest + e2e + قبول عبر HTTPS + verify).
+
+قيود البيئة: أي منفذ حاوية على 127.0.0.1 فقط؛ لا تعطيل للـWAF؛ لا أسرار في git؛ لا package-lock بعد (npm install في الصور).
+
+معايير القبول (PLAN): إسناد مهمة لعدة جهات/موظفين، تقسيمها لفرعية بإسناد مستقل، نقاش وتعليقات، تتبّع كل تغيير،
+تسجيل الحجم والتوقيت لكل مهمة، و`sudo task verify` ينجح.
+```
+
+### 7.د قالب أي مرحلة تالية
 
 ```text
 مرفق PLAN.md و HANDOFF.md. أكملنا حتى المرحلة <N-1>. نبني المرحلة <N> فقط.
@@ -212,8 +274,6 @@ SSH على **2244** (IPv4 فقط، بلا root، `AllowUsers devadmin`، 3 مح�
 وأنتج scripts/phases/<NN>-<اسم>.sh على غرار 01-foundation.sh.
 معايير القبول: <من PLAN.md> + `task verify` ينجح.
 ```
-
----
 
 ## 8. روتين نهاية كل محادثة
 
@@ -224,4 +284,4 @@ SSH على **2244** (IPv4 فقط، بلا root، `AllowUsers devadmin`، 3 مح�
 
 ---
 
-*آخر تحديث: 2026-10-19 — الإصدار 2.1: PWA بدل التطبيق الأصلي · Web Push بمفاتيح VAPID · خادم الإنتاج بنطاق حقيقي وشهادة موثوقة (شرط PWA) · نقل الكود عبر متصفح GitHub و`github.dev` بلا git على ويندوز.*
+*آخر تحديث: 2026-10-20 — الإصدار 2.3: كود المرحلة 1 مسلَّم، بانتظار `sudo task phase 1`. الإصدار 2.2: المرحلة 0 منفَّذة؛ `00-server.sh` على مواصفات التحصين المعتمدة. الإصدار 2.1: PWA بدل التطبيق الأصلي · Web Push بمفاتيح VAPID · خادم الإنتاج بنطاق حقيقي وشهادة موثوقة (شرط PWA) · نقل الكود عبر متصفح GitHub و`github.dev` بلا git على ويندوز.*

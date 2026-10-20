@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══ رموز الهوية — منقولة من prototype.html (رسمي / هادئ / عصري + داكن) ═══ */
+:root {
+  --bg: #f3f5f7; --surface: #ffffff; --surface2: #e9edf1; --line: #d3dae1;
+  --ink: #16222c; --ink2: #4b5b68; --ink3: #7b8a96;
+  --accent: #0f6e73; --accent-ink: #ffffff; --accent-soft: #d9eeee;
+  --side: #10262b; --side-ink: #cfe0e2; --side-active: #1c4a50;
+  --adhoc: #b4552a; --adhoc-soft: #f6e3d8; --routine: #0f6e73; --routine-soft: #d9eeee;
+  --ok: #2f7d4a; --ok-soft: #dcefe2; --warn: #a56b00; --warn-soft: #f7ebcf; --bad: #b3261e; --bad-soft: #f8dcda;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181e; --surface: #1a222a; --surface2: #222c35; --line: #2f3b46;
+    --ink: #e8edf1; --ink2: #b3bec8; --ink3: #7f8c98;
+    --accent: #4fb3b8; --accent-ink: #0d1a1b; --accent-soft: #183d40;
+    --side: #0c1519; --side-ink: #b7c9cc; --side-active: #1c4a50;
+    --adhoc: #e08a5c; --adhoc-soft: #4a2a1b; --routine: #4fb3b8; --routine-soft: #183d40;
+    --ok: #6fc38a; --ok-soft: #1d3b28; --warn: #e2b04a; --warn-soft: #3f3115; --bad: #f28b84; --bad-soft: #4a1f1c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181e; --surface: #1a222a; --surface2: #222c35; --line: #2f3b46;
+  --ink: #e8edf1; --ink2: #b3bec8; --ink3: #7f8c98;
+  --accent: #4fb3b8; --accent-ink: #0d1a1b; --accent-soft: #183d40;
+  --side: #0c1519; --side-ink: #b7c9cc; --side-active: #1c4a50;
+  --adhoc: #e08a5c; --adhoc-soft: #4a2a1b; --routine: #4fb3b8; --routine-soft: #183d40;
+  --ok: #6fc38a; --ok-soft: #1d3b28; --warn: #e2b04a; --warn-soft: #3f3115; --bad: #f28b84; --bad-soft: #4a1f1c;
+}
+
+/* هادئ — أزرق مؤسسي */
+:root[data-brand="calm"] {
+  --accent: #2a5d9f; --accent-ink: #ffffff; --accent-soft: #dde8f6;
+  --side: #15202e; --side-ink: #ccd9e8; --side-active: #23405f;
+  --routine: #2a5d9f; --routine-soft: #dde8f6; --adhoc: #a8541f; --adhoc-soft: #f6e4d5;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-brand="calm"]:not([data-theme="light"]) {
+    --accent: #6fa3e0; --accent-ink: #0c1724; --accent-soft: #17283c;
+    --side: #0b131d; --side-ink: #b6c6da; --side-active: #23405f;
+    --routine: #6fa3e0; --routine-soft: #17283c; --adhoc: #e0905f; --adhoc-soft: #3f2718;
+  }
+}
+:root[data-brand="calm"][data-theme="dark"] {
+  --accent: #6fa3e0; --accent-ink: #0c1724; --accent-soft: #17283c;
+  --side: #0b131d; --side-ink: #b6c6da; --side-active: #23405f;
+  --routine: #6fa3e0; --routine-soft: #17283c; --adhoc: #e0905f; --adhoc-soft: #3f2718;
+}
+/* عصري — بنفسجي وتركوازي */
+:root[data-brand="modern"] {
+  --accent: #5b4fc4; --accent-ink: #ffffff; --accent-soft: #e6e3f8;
+  --side: #1a1830; --side-ink: #cfcae6; --side-active: #332e5c;
+  --routine: #0f8f88; --routine-soft: #d8efed; --adhoc: #c2407a; --adhoc-soft: #f8dde8;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-brand="modern"]:not([data-theme="light"]) {
+    --accent: #9a90ef; --accent-ink: #14112a; --accent-soft: #241f42;
+    --side: #120f24; --side-ink: #c3bce0; --side-active: #332e5c;
+    --routine: #43bdb3; --routine-soft: #11332f; --adhoc: #e884ad; --adhoc-soft: #3d1a2a;
+  }
+}
+:root[data-brand="modern"][data-theme="dark"] {
+  --accent: #9a90ef; --accent-ink: #14112a; --accent-soft: #241f42;
+  --side: #120f24; --side-ink: #c3bce0; --side-active: #332e5c;
+  --routine: #43bdb3; --routine-soft: #11332f; --adhoc: #e884ad; --adhoc-soft: #3d1a2a;
+}
+
+html { direction: rtl; height: 100%; }
+body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans Arabic", Tahoma, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.6; }
+h1, h2, h3 { margin: 0; text-wrap: balance; font-weight: 600; }
+h1 { font-size: 20px; } h2 { font-size: 16px; } h3 { font-size: 14px; }
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ═══ مكوّنات الهوية (نفس أسماء prototype.html لسهولة المطابقة) ═══ */
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-ink2 cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  .btn.danger { color: var(--bad); border-color: var(--bad); }
+  .btn.lg { @apply px-3.5 py-2.5 text-sm; }
+  .field { @apply grid gap-1; }
+  .field label { @apply text-xs text-ink3; }
+  .field input, .field select { @apply w-full rounded-lg border border-line bg-bg px-2.5 py-2 text-ink; }
+  .card-s { @apply grid gap-3 rounded-card border border-line bg-surface p-4; }
+  .pill { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.bad { background: var(--bad-soft); color: var(--bad); }
+  .pill.grey { background: var(--surface2); color: var(--ink2); }
+  .pill.acc { background: var(--accent-soft); color: var(--accent); }
+  .pill.adhoc { background: var(--adhoc-soft); color: var(--adhoc); }
+  .pill.routine { background: var(--routine-soft); color: var(--routine); }
+  .tile { @apply grid gap-0.5 rounded-card border border-line bg-surface px-3.5 py-3; }
+  .tile .l { @apply text-xs text-ink3; }
+  .tile .v { @apply text-[26px] font-semibold leading-tight tabular-nums; }
+  .tile .d { @apply text-xs text-ink2; }
+  .tiny { @apply text-xs text-ink3; }
+  .note { @apply rounded-lg bg-surface2 px-3 py-2 text-xs text-ink2; }
+  .proto { @apply whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-semibold; background: var(--adhoc-soft); color: var(--adhoc); }
+  .nav { @apply flex items-center gap-2.5 rounded-lg px-2.5 py-2 font-medium no-underline; color: inherit; }
+  .nav:hover { background: rgba(255,255,255,.06); }
+  .nav.active { background: var(--side-active); color: #fff; }
+  .nav .ic { @apply w-5 text-center opacity-80; }
+  .brandsw { @apply inline-flex gap-0.5 rounded-full border border-line bg-surface2 p-[3px]; }
+  .brandsw button { @apply rounded-full border-0 bg-transparent px-[11px] py-1 text-xs font-semibold text-ink3 cursor-pointer; }
+  .brandsw button:hover { color: var(--ink); }
+  .brandsw button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .avatar { @apply inline-grid h-[26px] w-[26px] flex-none place-items-center rounded-full text-[11px] font-bold; background: var(--accent-soft); color: var(--accent); }
+  .avatar.sq { @apply rounded-md; }
+  .row { @apply flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-line bg-bg px-2.5 py-2; }
+  .row .grow { @apply min-w-[140px] flex-1; }
+  .row .muted { @apply text-xs text-ink3; }
+  /* شجرة الهيكل */
+  .tree { @apply m-0 grid list-none gap-1 p-0; }
+  .tree ul { @apply m-0 grid list-none gap-1 ps-[22px]; border-inline-start: 1px dashed var(--line); }
+  .tree .node { @apply flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-2.5 py-1.5; }
+  .tree .node .k { @apply rounded px-1.5 text-[11px] text-ink3; background: var(--surface2); }
+  .tree .node .who { @apply ms-auto text-xs text-ink3; }
+  .tree .node.me { border-color: var(--accent); }
+}
