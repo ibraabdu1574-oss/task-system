@@ -1,0 +1,14 @@
+# لا يدخل سياق البناء: أسرار، مخرجات، تبعيات محلية
+.env
+.env.*
+.git
+.state
+backups
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/coverage
+scripts
+deploy
+*.md
