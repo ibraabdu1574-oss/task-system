@@ -78,7 +78,13 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     if (next) return api<T>(path, init, false);
   }
   const text = await res.text();
-  const body = text ? (JSON.parse(text) as unknown) : null;
+  let body: unknown = null;
+  try {
+    body = text ? (JSON.parse(text) as unknown) : null;
+  } catch {
+    // ردّ غير JSON (مثل صفحة 403 من جدار حماية الويب) — نعرض سببًا مفهومًا بدل «فشل الطلب»
+    if (!res.ok) throw new ApiError(res.status, res.status === 403 ? 'حجب جدار حماية الويب هذا الطلب (403) — أبلغ مسؤول النظام برقم القاعدة من سجل nginx' : `خطأ ${res.status}`);
+  }
   if (!res.ok) throw new ApiError(res.status, messageOf(body, `خطأ ${res.status}`), body);
   return body as T;
 }
