@@ -1,15 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import type { FormEvent, ReactNode } from 'react';
 import { ROLE_LABELS } from '@task/shared';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 
 const NAV: { href: string; label: string; icon: string; soon?: boolean }[] = [
   { href: '/dashboard', label: 'الرئيسية', icon: '▣' },
-  { href: '/tasks', label: 'المهام', icon: '☰', soon: true },
+  { href: '/tasks', label: 'المهام', icon: '☰' },
   { href: '/kanban', label: 'لوحة Kanban', icon: '▥', soon: true },
   { href: '/calendar', label: 'التقويم', icon: '▦', soon: true },
 ];
@@ -31,6 +31,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const { user, loading, signOut } = useAuth();
   const { brand, toggleTheme, changeBrand } = useTheme();
   const path = usePathname();
+  const router = useRouter();
+
+  function search(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const q = (new FormData(e.currentTarget).get('q') as string).trim();
+    router.push(q ? `/tasks?q=${encodeURIComponent(q)}` : '/tasks');
+  }
 
   if (loading || !user) {
     return <div className="grid min-h-screen place-items-center text-ink3">جارٍ التحميل…</div>;
@@ -67,7 +74,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-10 flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-line bg-surface px-5 py-3">
-          <input type="search" placeholder="ابحث…" aria-label="بحث" className="w-[min(100%,260px)] rounded-lg border border-line bg-bg px-2.5 py-1.5 text-ink" disabled title="البحث في المهام — المرحلة 2" />
+          <form onSubmit={search} className="contents">
+            <input name="q" type="search" placeholder="ابحث في المهام… (عنوان أو #رقم)" aria-label="بحث في المهام" className="w-[min(100%,260px)] rounded-lg border border-line bg-bg px-2.5 py-1.5 text-ink" />
+          </form>
           <span className="flex-1" />
           <span className="proto">بيئة التطوير · بيانات تجريبية</span>
           <span className="text-[11px] font-semibold text-ink3">التصميم</span>
@@ -79,7 +88,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <button className="btn" type="button" onClick={toggleTheme}>الوضع الداكن</button>
         </header>
         <main className="grid content-start gap-4 p-5">{children}</main>
-        <footer className="mt-auto border-t border-line px-5 py-2.5 text-xs text-ink3">نظام إدارة المهام · المرحلة 1 — الأساس</footer>
+        <footer className="mt-auto border-t border-line px-5 py-2.5 text-xs text-ink3">نظام إدارة المهام · المرحلة 2 — المهام</footer>
       </div>
     </div>
   );

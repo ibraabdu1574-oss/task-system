@@ -10,6 +10,7 @@ import { OrgModule } from './modules/org/org.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/health/health.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
@@ -24,6 +25,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     UsersModule,
     OrgModule,
     CapacityModule,
+    TasksModule,
     HealthModule,
   ],
   providers: [

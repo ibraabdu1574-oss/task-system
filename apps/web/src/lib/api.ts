@@ -78,13 +78,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
     if (next) return api<T>(path, init, false);
   }
   const text = await res.text();
-  let body: unknown = null;
-  try {
-    body = text ? (JSON.parse(text) as unknown) : null;
-  } catch {
-    // ردّ غير JSON (مثل صفحة 403 من جدار حماية الويب) — نعرض سببًا مفهومًا بدل «فشل الطلب»
-    if (!res.ok) throw new ApiError(res.status, res.status === 403 ? 'حجب جدار حماية الويب هذا الطلب (403) — أبلغ مسؤول النظام برقم القاعدة من سجل nginx' : `خطأ ${res.status}`);
-  }
+  const body = text ? (JSON.parse(text) as unknown) : null;
   if (!res.ok) throw new ApiError(res.status, messageOf(body, `خطأ ${res.status}`), body);
   return body as T;
 }
@@ -103,4 +97,49 @@ export async function logout(): Promise<void> {
     /* حتى لو فشل الإبطال على الخادم نُنهي الجلسة محليًا */
   }
   saveSession(null);
+}
+
+/** رفع ملف (multipart) — بلا Content-Type يدوي حتى يضبط المتصفح الحدّ (boundary) */
+export async function upload<T>(path: string, file: File, field = 'file', retry = true): Promise<T> {
+  const s = loadSession();
+  const fd = new FormData();
+  fd.append(field, file, file.name);
+  const headers: Record<string, string> = {};
+  if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
+  const res = await fetch(`${BASE}${path}`, { method: 'POST', body: fd, headers });
+  if (res.status === 401 && retry && s?.refreshToken) {
+    const next = await refresh();
+    if (next) return upload<T>(path, file, field, false);
+  }
+  const text = await res.text();
+  const body = text ? (JSON.parse(text) as unknown) : null;
+  if (!res.ok) throw new ApiError(res.status, messageOf(body, `خطأ ${res.status}`), body);
+  return body as T;
+}
+
+/** تنزيل ملف محمي (يحتاج Authorization) ثم حفظه عبر رابط مؤقت */
+export async function download(path: string, fileName: string, retry = true): Promise<void> {
+  const s = loadSession();
+  const headers: Record<string, string> = {};
+  if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
+  const res = await fetch(`${BASE}${path}`, { headers });
+  if (res.status === 401 && retry && s?.refreshToken) {
+    const next = await refresh();
+    if (next) return download(path, fileName, false);
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    let body: unknown = null;
+    try { body = text ? JSON.parse(text) : null; } catch { /* ليس JSON */ }
+    throw new ApiError(res.status, messageOf(body, `خطأ ${res.status}`), body);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }

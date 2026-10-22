@@ -34,7 +34,7 @@ async function bootstrap() {
   if (config.swaggerEnabled) {
     const doc = new DocumentBuilder()
       .setTitle('نظام إدارة المهام — API')
-      .setVersion('1.0 (المرحلة 1)')
+      .setVersion('1.1 (المرحلة 2 — المهام)')
       .addBearerAuth()
       .build();
     SwaggerModule.setup('api/v1/docs', app, SwaggerModule.createDocument(app, doc));

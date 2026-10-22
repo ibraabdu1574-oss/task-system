@@ -12,20 +12,27 @@ import type { Action, OrgLevel, OrgPosition, Role, Scope, SessionUser } from '@t
  */
 
 /** الإجراءات المسموحة لكل دور (قبل فحص الموقع في الشجرة) */
+/** إجراءات المهام (المرحلة 2): الكل يقرأ وينشئ ويعدّل ويعلّق ويرفق ضمن نطاقه؛ الإسناد لغير الموظف */
+const TASK_ACTIONS: Action[] = ['tasks.read', 'tasks.create', 'tasks.update', 'tasks.comment', 'tasks.attach'];
+const TASK_ACTIONS_MANAGER: Action[] = [...TASK_ACTIONS, 'tasks.assign'];
+
 const ROLE_ACTIONS: Record<Role, ReadonlySet<Action>> = {
   ceo: new Set<Action>([
     'self', 'org.read', 'org.manage', 'users.read', 'users.manage',
     'holidays.read', 'holidays.manage', 'leaves.read', 'leaves.manage', 'audit.read',
+    ...TASK_ACTIONS_MANAGER,
   ]),
   generalAdminManager: new Set<Action>([
     'self', 'org.read', 'org.manage', 'users.read', 'users.manage', 'holidays.read', 'leaves.read', 'leaves.manage',
+    ...TASK_ACTIONS_MANAGER,
   ]),
   adminManager: new Set<Action>([
     'self', 'org.read', 'org.manage', 'users.read', 'users.manage', 'holidays.read', 'leaves.read', 'leaves.manage',
+    ...TASK_ACTIONS_MANAGER,
   ]),
-  followUpOfficer: new Set<Action>(['self', 'org.read', 'users.read', 'holidays.read', 'leaves.read', 'leaves.manage']),
-  supervisor: new Set<Action>(['self', 'org.read', 'users.read', 'holidays.read', 'leaves.read', 'leaves.manage']),
-  employee: new Set<Action>(['self', 'org.read', 'users.read', 'holidays.read', 'leaves.read', 'leaves.manage']),
+  followUpOfficer: new Set<Action>(['self', 'org.read', 'users.read', 'holidays.read', 'leaves.read', 'leaves.manage', ...TASK_ACTIONS_MANAGER]),
+  supervisor: new Set<Action>(['self', 'org.read', 'users.read', 'holidays.read', 'leaves.read', 'leaves.manage', ...TASK_ACTIONS_MANAGER]),
+  employee: new Set<Action>(['self', 'org.read', 'users.read', 'holidays.read', 'leaves.read', 'leaves.manage', ...TASK_ACTIONS]),
 };
 
 const LEVEL_RANK: Record<OrgLevel, number> = {

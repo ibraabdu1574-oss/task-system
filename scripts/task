@@ -42,7 +42,7 @@ task — إدارة نظام المهام
     task env             توليد/إكمال الأسرار الناقصة في .env
     task nginx           تطبيق إعداد nginx من قوالب المستودع
     task deploy-key      توليد مفتاح نشر GitHub (للقراءة فقط) وطباعته
-    task phase <رقم>     تشغيل سكربت تهيئة مرحلة (مثال: task phase 1)
+    task phase <رقم>     تشغيل سكربت تهيئة مرحلة (مثال: task phase 2)
     task harden --finish إغلاق المنفذ 22 بعد التأكد من الدخول على 2244
     task security        فحص التحصين فقط (sudo)
 EOF
@@ -76,9 +76,9 @@ cmd_env() {
 
 cmd_test() {
   svc_defined api || die "خدمة api غير معرّفة بعد"
-  say "اختبارات الوحدة (RBAC)"
+  say "اختبارات الوحدة (RBAC + نطاق رؤية المهام)"
   dc exec -T api npx jest
-  say "اختبارات التكامل (مصادقة/صلاحيات) — على قاعدة التطوير بعد البذرة"
+  say "اختبارات التكامل (مصادقة/صلاحيات + المهام) — على قاعدة التطوير بعد البذرة"
   dc exec -T api npm run -s test:e2e
   ok "كل الاختبارات نجحت"
 }

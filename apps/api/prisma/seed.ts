@@ -5,7 +5,7 @@
  *
  *   npx prisma db seed     (أو: task seed)
  */
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient, Role, type AssigneeType, type SizePreset } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
@@ -113,6 +113,10 @@ async function main() {
     await prisma.holiday.upsert({ where: { date }, update: { name: h.name }, create: { date, name: h.name } });
   }
 
+  // ═══════════ المرحلة 2: أحجام المهام الافتراضية + مهام تجريبية ═══════════
+  await seedSizePresets();
+  await seedTasks({ systemsId: systems.id, cyberId: cyber.id, dbSectionId: db.id, supportId: support.id, techId: tech.id });
+
   console.log('✓ البذرة جاهزة — الحسابات التجريبية (كلمة المرور نفسها للجميع = SEED_PASSWORD):');
   console.table([
     { الدور: 'الرئيس التنفيذي', الرقم: ceo.employeeNo, الاسم: ceo.name },
@@ -122,6 +126,81 @@ async function main() {
     { الدور: 'مشرف (الدعم الفني)', الرقم: sup.employeeNo, الاسم: sup.name },
     { الدور: 'موظف (الدعم الفني)', الرقم: '1042', الاسم: 'سارة المطيري' },
   ]);
+}
+
+/** الافتراضي العام لترجمة الحجم إلى ساعات (PLAN 9.1): 4 / 16 / 40 — يُضاف إن لم يوجد ولا يُغيَّر إن ضُبط يدويًا */
+async function seedSizePresets() {
+  const defaults: { size: SizePreset; hours: number }[] = [{ size: 'daily', hours: 4 }, { size: 'weekly', hours: 16 }, { size: 'long', hours: 40 }];
+  for (const d of defaults) {
+    const exists = await prisma.sizePresetConfig.findFirst({ where: { administrationId: null, size: d.size } });
+    if (!exists) await prisma.sizePresetConfig.create({ data: { administrationId: null, size: d.size, hours: d.hours } });
+  }
+}
+
+/** مهام تجريبية تطابق prototype.html — تُضاف مرة واحدة فقط (إن لم توجد أي مهمة) */
+async function seedTasks(ids: { systemsId: string; cyberId: string; dbSectionId: string; supportId: string; techId: string }) {
+  if ((await prisma.task.count()) > 0) return;
+  const byNo = async (no: string) => (await prisma.user.findUniqueOrThrow({ where: { employeeNo: no } }));
+  const khalid = await byNo('1003'), mona = await byNo('1015'), omar = await byNo('1020'), sara = await byNo('1042'), fahad = await byNo('1051'), ahmed = await byNo('1077');
+  const presets = await prisma.sizePresetConfig.findMany({ where: { administrationId: null } });
+  const hours = (size: SizePreset | null) => (size ? presets.find((p) => p.size === size)?.hours ?? null : null);
+  const day = (offset: number) => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() + offset); return d; };
+  type Who = { type: AssigneeType; id: string };
+  const asg = async (w: Who) => {
+    if (w.type === 'user') { const u = await prisma.user.findUniqueOrThrow({ where: { id: w.id } }); return { assigneeType: w.type, assigneeId: u.id, generalAdminId: u.generalAdminId, administrationId: u.administrationId, sectionId: u.sectionId, userId: u.id }; }
+    if (w.type === 'section') { const sec = await prisma.section.findUniqueOrThrow({ where: { id: w.id }, include: { administration: true } }); return { assigneeType: w.type, assigneeId: sec.id, generalAdminId: sec.administration.generalAdminId, administrationId: sec.administrationId, sectionId: sec.id, userId: null }; }
+    if (w.type === 'administration') { const ad = await prisma.administration.findUniqueOrThrow({ where: { id: w.id } }); return { assigneeType: w.type, assigneeId: ad.id, generalAdminId: ad.generalAdminId, administrationId: ad.id, sectionId: null, userId: null }; }
+    return { assigneeType: w.type, assigneeId: w.id, generalAdminId: w.id, administrationId: null, sectionId: null, userId: null };
+  };
+  interface Demo { title: string; description?: string; category: 'routine' | 'adhoc'; priority: 'low' | 'medium' | 'high'; state: 'not_started' | 'in_progress' | 'done'; due: number; size: SizePreset | null; by: { id: string; generalAdminId: string | null; administrationId: string | null; sectionId: string | null }; to: Who[]; subs?: { title: string; state: 'not_started' | 'in_progress' | 'done'; to: Who[] }[] }
+  const demos: Demo[] = [
+    { title: 'تحديث سياسة كلمات المرور في نظام الموارد البشرية', description: 'طلب وارد من إدارة الأمن السيبراني بتطبيق سياسة كلمات مرور جديدة (12 خانة، انتهاء كل 90 يومًا) على نظام الموارد البشرية قبل نهاية الربع. يتطلب تعديل الإعدادات، واختبارًا على بيئة التجربة، وتعميمًا للموظفين.', category: 'adhoc', priority: 'high', state: 'in_progress', due: 8, size: 'weekly', by: khalid, to: [{ type: 'user', id: sara.id }, { type: 'section', id: ids.dbSectionId }, { type: 'administration', id: ids.cyberId }],
+      subs: [
+        { title: 'تعديل إعدادات السياسة على بيئة التجربة', state: 'done', to: [{ type: 'user', id: sara.id }] },
+        { title: 'مراجعة الأمن السيبراني للإعدادات', state: 'done', to: [{ type: 'administration', id: ids.cyberId }] },
+        { title: 'تطبيق السياسة على بيئة الإنتاج', state: 'in_progress', to: [{ type: 'section', id: ids.dbSectionId }] },
+        { title: 'تعميم على الموظفين عبر البريد', state: 'not_started', to: [] },
+      ] },
+    { title: 'مراجعة سجلات الوصول الشهرية', category: 'routine', priority: 'medium', state: 'in_progress', due: -3, size: 'daily', by: mona, to: [{ type: 'user', id: fahad.id }] },
+    { title: 'ترخيص برنامج الحماية', category: 'adhoc', priority: 'high', state: 'not_started', due: -7, size: 'daily', by: khalid, to: [{ type: 'user', id: ahmed.id }] },
+    { title: 'بطء في نظام الأرشفة', category: 'adhoc', priority: 'high', state: 'in_progress', due: 2, size: 'weekly', by: omar, to: [{ type: 'user', id: fahad.id }] },
+    { title: 'النسخ الاحتياطي الأسبوعي', category: 'routine', priority: 'medium', state: 'not_started', due: 4, size: 'daily', by: khalid, to: [{ type: 'section', id: ids.dbSectionId }] },
+    { title: 'طلب صلاحية جديدة لنظام المشتريات', category: 'adhoc', priority: 'low', state: 'not_started', due: 3, size: 'daily', by: omar, to: [{ type: 'user', id: ahmed.id }] },
+    { title: 'تقرير أداء الخوادم الأسبوعي', category: 'routine', priority: 'medium', state: 'done', due: -1, size: 'daily', by: mona, to: [{ type: 'user', id: sara.id }] },
+    { title: 'استعادة حساب موظف', category: 'adhoc', priority: 'high', state: 'done', due: -2, size: 'daily', by: omar, to: [{ type: 'user', id: fahad.id }] },
+    { title: 'جرد أصول إدارة الأنظمة', category: 'routine', priority: 'low', state: 'not_started', due: 20, size: 'long', by: khalid, to: [{ type: 'administration', id: ids.systemsId }] },
+  ];
+  for (const d of demos) {
+    const started = d.state === 'not_started' ? null : day(-2);
+    const completed = d.state === 'done' ? day(-1) : null;
+    const t = await prisma.task.create({
+      data: {
+        title: d.title, description: d.description ?? null, category: d.category, priority: d.priority, state: d.state, dueDate: day(d.due),
+        sizePreset: d.size, estimatedHours: hours(d.size), startedAt: started, completedAt: completed,
+        generalAdminId: d.by.generalAdminId, administrationId: d.by.administrationId, sectionId: d.by.sectionId, createdById: d.by.id,
+        assignments: { create: await Promise.all(d.to.map((w) => asg(w).then((a) => ({ ...a, assignedById: d.by.id })))) },
+        activities: { create: [{ actorId: d.by.id, type: 'created', data: { title: d.title, category: d.category, seed: true } }] },
+      },
+    });
+    for (const s of d.subs ?? []) {
+      await prisma.task.create({
+        data: {
+          title: s.title, category: d.category, priority: d.priority, state: s.state, dueDate: day(d.due), sizePreset: 'daily', estimatedHours: hours('daily'),
+          startedAt: s.state === 'not_started' ? null : day(-2), completedAt: s.state === 'done' ? day(-1) : null,
+          parentTaskId: t.id, generalAdminId: d.by.generalAdminId, administrationId: d.by.administrationId, sectionId: d.by.sectionId, createdById: d.by.id,
+          assignments: { create: await Promise.all(s.to.map((w) => asg(w).then((a) => ({ ...a, assignedById: d.by.id })))) },
+          activities: { create: [{ actorId: d.by.id, type: 'created', data: { title: s.title, seed: true } }] },
+        },
+      });
+    }
+    if (d.title.startsWith('تحديث سياسة')) {
+      await prisma.comment.createMany({ data: [
+        { taskId: t.id, authorId: sara.id, content: 'تم الاختبار على التجربة بنجاح. أحتاج موافقة على نافذة تطبيق يوم الخميس مساءً.' },
+        { taskId: t.id, authorId: khalid.id, content: 'موافق. نسّقي مع قسم قواعد البيانات على النسخ الاحتياطي قبلها.' },
+      ] });
+    }
+  }
+  console.log(`✓ أُضيفت ${demos.length} مهام تجريبية (مع فرعية وتعليقات)`);
 }
 
 main()

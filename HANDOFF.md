@@ -1,7 +1,7 @@
 # HANDOFF — نظام إدارة المهام الداخلي
 
 > ملف التسليم بين المحادثات. **مخرجات كل محادثة = بذرة المحادثة التالية.**
-> **الإصدار 2.3 (2026-10-20)** — **كود المرحلة 1 مكتوب ومسلَّم** (Monorepo + Prisma + مصادقة + RBAC هرمي + هيكل + سعة + تدقيق + واجهة دخول/هيكل) · `01-foundation.sh` يبني ويرحّل ويبذر **ويشغّل الاختبارات داخل الحاويات** ثم يفحص القبول · بانتظار التشغيل على الخادم.
+> **الإصدار 2.4 (2026-10-21)** — **كود المرحلة 2 مكتوب ومسلَّم** (المهام: CRUD ضمن النطاق + إسناد متعدد الأنواع + فرعية بإسناد مستقل + تعليقات + مرفقات + سجل نشاط + الحجم والتوقيت + أحجام قابلة للضبط لكل إدارة + واجهة قائمة/تفاصيل/إنشاء) · `02-tasks.sh` يرحّل ويبذر ويشغّل tsc/Jest/Supertest داخل الحاويات ثم يفحص القبول عبر HTTPS · بانتظار `sudo task phase 2`.
 
 ---
 
@@ -17,12 +17,15 @@
 ## 2. حالة المشروع الآن
 
 - **مكتمل:** التخطيط (`PLAN.md` 1.2) + النموذج البصري (`prototype.html`) + **المرحلة 0** (خادم التطوير مجهّز ومحصّن).
-- **المرحلة 1 — مكتوبة بالكامل، لم تُشغَّل بعد على الخادم.** الكود في `apps/api` و`apps/web` و`packages/shared` + `docker-compose.yml` + `scripts/phases/01-foundation.sh` + تحديث `scripts/task` (`task env` صار يولّد كل أسرار المرحلة، وأُضيف `task test`).
+- **المرحلة 1 — منفَّذة ومقبولة (2026-10-21):** `sudo task phase 1` نجح كاملًا (tsc ×2، 8 وحدة، 18 تكامل، قبول HTTPS، verify). الدخول والهيكل يعملان على https://iat.sa.
+- **المرحلة 2 — الكود مسلَّم (2026-10-21)، بانتظار التشغيل:** ملفات المرحلة (القسم 4.و) تُرفع إلى GitHub ثم `task deploy && sudo task phase 2`. السكربت: ترحيل `20261021000000_phase2_tasks` + بذرة (أحجام 4/16/40 + 9 مهام تجريبية بفرعية وتعليقات) + tsc ×2 + Jest (17 وحدة) + Supertest (18 + 11 تكامل) + قبول عبر HTTPS (إسناد لثلاث جهات، فرعية، حالة/توقيت، تعليق، رفع/تنزيل مرفق عبر WAF، نطاق الرؤية) + verify.
 - **الخادم:** DigitalOcean، Ubuntu 24.04، النطاق **`iat.sa`**، الدخول `ssh -p 2244 devadmin@iat.sa`. `sudo task verify` ينجح (المرحلة 0). nginx يعرض الصفحة المؤقتة حتى يُشغَّل `sudo task phase 1`.
 - **الكود:** المستودع الخاص **`ibraabdu1574-oss/task-system`** مربوط بالخادم (`/home/devadmin/task-system`، فرع `main`) بمفتاح نشر للقراءة فقط. آخر commit مسجّل: `7380f4a` (قبل رفع المرحلة 1).
 - **`.env`:** يُولَّد كاملًا عند أول `sudo task phase 1` (قاعدة البيانات، JWT، `SEED_PASSWORD`).
-- **الخطوة القادمة:** رفع ملفات المرحلة 1 إلى GitHub ثم على الخادم: **`task deploy && sudo task phase 1`** (أو `sudo task phase 1` وحده — فهو يسحب الكود بنفسه). ثم إلصاق الناتج في محادثة جديدة إن فشل شيء، أو الانتقال إلى **المرحلة 2** (القسم 7.ج).
+- **الخطوة القادمة:** تشغيل `sudo task phase 2` على الخادم ولصق الناتج؛ بعد نجاحه → **المرحلة 3 — التصنيف والحالات** (القسم 7.د). الحسابات التجريبية: 1001/1002/1003/1015/1020/1042/1051 وكلمة المرور في `.env` (`SEED_PASSWORD`).
 
+> **ما تغيّر في 2.4:** كود المرحلة 2 كُتب كاملًا فوق أنماط المرحلة 1. بيئة المساعد ما زالت بلا سجل npm، فتحقّقنا محليًا من: SQL الترحيل على PostgreSQL 16 حقيقي (بعد ترحيل المرحلة 1)، صلاحية YAML/bash، وصياغة TypeScript مع حل `@task/shared` من المصدر؛ أما الأنواع المولّدة (Prisma/Nest/React) فيفحصها `tsc` داخل الحاويات في الخطوة 6 من السكربت. **اختلاف واحد عن PLAN:** حالة المهمة في المرحلة 2 = الفئة السلوكية فقط (`TaskState: not_started/in_progress/done`)؛ `TaskStatus` القابلة للتخصيص لكل إدارة تُضاف في المرحلة 3 وتُربط بهذه الفئة (القسم 5).
+>
 > **ما تغيّر في 2.3:** كود المرحلة 1 كُتب كاملًا. بيئة المساعد لم تستطع تثبيت حزم npm (سجل npm محجوب هناك)، فلم تُشغَّل الاختبارات قبل التسليم؛ **التعويض:** السكربت يشغّل داخل الحاويات `prisma validate` ثم فحص **مطابقة قاعدة البيانات للمخطط** (`prisma migrate diff --exit-code`) ثم `tsc` للـapi والـweb ثم **Jest** (وحدة RBAC) و**Supertest** (16 اختبار تكامل للمصادقة والصلاحيات) — فأي خطأ يظهر في أول تشغيل برسالة تقول ما العمل. ما تحقّقنا منه فعلًا قبل التسليم: SQL الترحيل طُبّق على PostgreSQL 16 حقيقي بنجاح، صلاحية YAML/JSON، وصياغة TypeScript والـbash.
 
 ## 3. أسلوب التنفيذ (القاعدة الحاكمة — حلّت محل «خطوة بخطوة»)
@@ -131,6 +134,33 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
   src/lib/api.ts (عميل + تجديد access تلقائي) · auth.tsx · theme.tsx
 ```
 
+### 4.و هيكل الكود (المرحلة 2 — ما أُضيف أو عُدّل)
+
+```
+packages/shared/src/index.ts        + إجراءات tasks.read/create/update/assign/comment/attach · أنواع المهام (TaskSummary/TaskDetail/…) · ثوابت الأحجام 4/16/40 · سياسة المرفقات
+apps/api/prisma/schema.prisma       + Task (ذاتية المرجع، seq، category، priority، state، dueDate، sizePreset/estimatedHours/startedAt/completedAt، موقع في الشجرة)
+                                      + TaskAssignment (متعدد الأنواع + موقع الجهة محفوظ معه) + SizePresetConfig + Comment + Attachment + TaskActivity
+apps/api/prisma/migrations/20261021000000_phase2_tasks/   SQL يدوي بنمط Prisma (مُجرَّب على PostgreSQL 16)
+apps/api/prisma/seed.ts             + الأحجام الافتراضية + 9 مهام تجريبية تطابق prototype.html (تُضاف مرة واحدة)
+apps/api/src/modules/tasks/
+  task-scope.ts (+spec)             نطاق رؤية المهام — دوال نقية: visibleTasksWhere (قيد Prisma) · canSeeTask · canManageTask
+  tasks.service.ts                  CRUD + إسناد + فرعية + تعليقات + سجل نشاط + أحجام→ساعات (كل فحص صلاحية يتكرر هنا)
+  attachments.service.ts            تخزين خارج الجذر العام (ATTACHMENTS_DIR) بأسماء عشوائية + تحقق امتداد/توقيع/حجم + فحص الصلاحية قبل التنزيل
+  tasks.controller.ts · dto/task.dto.ts · tasks.module.ts
+apps/api/src/modules/rbac/permission.service.ts   + إجراءات المهام لكل دور (tasks.assign لغير الموظف)
+apps/api/src/config/config.ts       + attachmentsDir · app.module.ts + TasksModule · main.ts (إصدار Swagger) · package.json + @types/multer
+apps/api/test/tasks.e2e-spec.ts     11 اختبار تكامل: إسناد متعدد، نطاق الرؤية، فرعية، حالة/توقيت، تعليقات، مرفقات، أحجام، فلاتر، تدقيق
+apps/web/src/app/(app)/tasks/       page.tsx (قائمة + فلاتر) · new/page.tsx (نموذج + اختيار الحجم + إسناد متعدد) · [id]/page.tsx (التفاصيل)
+apps/web/src/components/tasks/      bits.tsx (شارات/تنسيق/نص النشاط) · AssigneePicker.tsx (من /org/tree) · SizePicker.tsx (من /tasks/size-presets)
+apps/web/src/app/globals.css        + مكوّنات page-tasks/page-task/page-new · Shell.tsx (تفعيل «المهام» + بحث) · dashboard (إحصاءات المهام) · lib/api.ts (upload/download)
+docker-compose.yml                  + volume attachments:/app/data/attachments + ATTACHMENTS_DIR · .env.example (تعليق) · deploy/nginx/taskapp.conf.tmpl بلا تغيير
+deploy/waf/task-exclusions.conf     القاعدة 9000110 صارت لمسار POST /api/v1/tasks/<uuid>/attachments (200002/200004 + إزالة أهداف FILES/FILES_NAMES من قواعد الحقن) · 9000120 تبقى لـ /_next/static
+scripts/task                        نص المساعدة + task test (لا تغيير في منطق nginx؛ القالب فيه client_max_body_size 25m أصلًا)
+scripts/phases/02-tasks.sh          سكربت المرحلة
+```
+
+**واجهة المهام (API):** `GET/POST /tasks` · `GET/PATCH/DELETE /tasks/:id` · `POST /tasks/:id/state` · `POST /tasks/:id/assignments` · `DELETE /tasks/:id/assignments/:aid` · `POST /tasks/:id/comments` · `DELETE …/comments/:cid` · `POST /tasks/:id/attachments` (multipart `file`) · `GET …/attachments/:aid/download` · `DELETE …/attachments/:aid` · `GET /tasks/stats` · `GET/PUT /tasks/size-presets`.
+
 ---
 
 ## 5. القرارات الثابتة
@@ -156,6 +186,14 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
 - **(م1) الرموز في الواجهة:** access (15د) + refresh (7 أيام، دوّار، تجزئته فقط في DB، إعادة استخدام رمز مُبطَل تُنهي كل الجلسات) محفوظان في `localStorage` — مقبول للتطوير؛ يُراجَع مع CSP في مرحلة التصليب قبل الإنتاج.
 - **(م1) المسار المحمي بلا `@Require()` يُرفض** (403) — فلا يُنسى إعلان الصلاحية على مسار جديد. المسارات الذاتية تُعلَّم `@Require('self')`.
 - **(م1) الإجراءات:** `org.read/manage` · `users.read/manage` · `holidays.read/manage` · `leaves.read/manage` · `audit.read` · `self`. قاعدة الإدارة: الفاعل يدير وحدة **أدنى** من مستوى نطاقه فقط (المدير العام يدير إداراته لا إدارته العامة نفسها؛ الرئيس يدير الكل).
+- **(م2) حالة المهمة = الفئة السلوكية:** `Task.state: not_started | in_progress | done` فقط. المرحلة 3 تضيف `TaskStatus` القابلة للتخصيص لكل إدارة (اسم/لون/ترتيب + `category` + `latenessKind`) وتربط `Task.statusId` بها، وتبقى `state` مشتقة من فئة الحالة. «متأخرة» تُحسب من `dueDate` لا تُخزَّن.
+- **(م2) نطاق رؤية المهام (`task-scope.ts`):** المهمة مرئية إن كان موقعها (من منشئها) داخل نطاق الفاعل الإداري، أو أنشأها هو، أو أُسندت إليه/إلى وحدة ينتمي إليها/إلى جهة داخل نطاقه. الموظف يرى المسند إليه فقط؛ مسؤول المتابعة يرى كل مهام إدارته. **الإدارة** (تعديل/إسناد/حذف) لمنشئها أو لمستوى إداري يحتوي موقعها — من يراها عبر إسناد فقط يعلّق ويرفق ويحرّك حالتها ولا يعدّل بياناتها. غير المرئي يعيد **404** (بلا تسريب وجوده).
+- **(م2) الإسناد ضمن النطاق:** الجهة المسندة يجب أن تكون داخل نطاق الفاعل (مدير إدارة لا يُسند لإدارة أخرى ولا لإدارته العامة كوحدة). التوزيع عبر الإدارات = المرحلة 3. الموظف بلا `tasks.assign`: يُسند لنفسه فقط (مهمته أو فرعية من مهمة يراها). موقع جهة الإسناد يُحفظ مع الإسناد (`TaskAssignment.generalAdminId/administrationId/sectionId/userId`) ليُحسب النطاق باستعلام واحد.
+- **(م2) الفرعية مستوى واحد** (لا فرعية من فرعية)، موقعها موقع الأم وإسنادها مستقل، وحذف الأم يحذفها (cascade).
+- **(م2) الحجم والتوقيت:** `estimatedHours` يُشتق من `sizePreset` عبر `SizePresetConfig` (ضبط الإدارة ← الافتراضي العام في DB ← الثوابت 4/16/40) ويمكن تجاوزه يدويًا؛ تغيير الحجم بلا ساعات صريحة يعيد الاشتقاق. `startedAt` عند أول `in_progress`، `completedAt` عند `done` (يُمسح عند الرجوع). ضبط الأحجام: الرئيس للعام، والمستوى الإداري المحتوي للإدارة.
+- **(م2) المرفقات:** volume `attachments` على `/app/data/attachments` (خارج أي جذر عام، لا يُخدَم مباشرةً)، اسم مخزَّن عشوائي (uuid.ext)، الامتدادات المسموحة في `ATTACHMENT_POLICY` (pdf/صور/نصوص/office/zip، ≤10 MB)، تحقق من توقيع الملف لا من نوع MIME المرسل، تنزيل بـ `Content-Disposition` آمن (RFC 5987 للعربية) وبعد فحص الرؤية. أسماء الملفات العربية من multer 1.x تُصحَّح من latin1. قالب nginx فيه `client_max_body_size 25m` (أكبر من حدّ الـ API 10 MB وأقل من `SecRequestBodyLimit`). استثناء WAF للمرفقات = القاعدة **9000110** في `task-exclusions.conf` (مسار `/tasks/<uuid>/attachments`؛ معرّفات 9000110–9000111 للمرفقات، 9000120 للملفات الثابتة — لا تكرّر معرّفًا). النسخ الاحتياطي (`task backup`) يغطي قاعدة البيانات فقط — ملفات المرفقات في volume `taskapp_attachments` (تُضاف إلى النسخة الكاملة في المرحلة 6).
+- **(م2) سجل نشاط المهمة (`TaskActivity`)** يُكتب في نفس معاملة التغيير: created/updated(+diff)/state_changed/assigned/unassigned/subtask_created/comment_added/comment_deleted/attachment_added/attachment_deleted. سجل التدقيق العام (`AuditLog`) يبقى على مستوى الطلب.
+- **(م2) `Task.seq`** رقم متسلسل قصير للعرض (#1048) إلى جانب uuid.
 
 ### 5.أ التأمين المطبَّق على خادم التطوير (`scripts/00-server.sh` — مطابق لمواصفات التحصين المعتمدة لدى المستخدم)
 
@@ -169,6 +207,10 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
 - **الإنتاج الداخلي:** `ENV=internal-prod CERT_FILE=… KEY_FILE=… INTERNAL_NETS=…` → بلا حصر جغرافي ولا certbot؛ السماح من الشبكات الداخلية فقط؛ `ignoreip` يشمل بوابات NAT؛ HSTS سنة.
 - **الطوارئ:** Recovery Console في DigitalOcean (لا Droplet Console — يمر عبر SSH فيُحجب). جدول الطوارئ في README.
 
+**دروس المرحلة 1 (التشغيل):** `task deploy` يفشل قبل أول `task phase 1` لأن compose يرفض العمل بلا `.env` — طبيعي؛ السكربت يولّده. · WAF حجب PUT/PATCH/DELETE (CRS 911100) → استثناء 9000105 يوسّع `tx.allowed_methods` على `/api/` فقط. · كل حجب WAF يُحتسب في fail2ban (5/10د) → `sudo fail2ban-client unban --all`. · سجل ModSecurity (`SecAuditEngine RelevantOnly` → `/var/log/modsec_audit.log`) مفعّل يدويًا على الخادم لتشخيص الحجب — أضفه إلى `00-server.sh` عند أول تعديل عليه.
+
+**دروس المرحلة 2 (التسليم):** الاختبارات تُكتب لتعمل على البذرة نفسها (الحسابات 1001–1090/2001 والهيكل التجريبي) وتنظّف ما تنشئه · **ارفع مع كل مرحلة كل ملفات `deploy/` و`scripts/`** (أو zip المستودع كاملًا) حتى لا يعيد المساعد كتابة ملف لم يره — في 2.4 كاد يتكرر معرّف WAF 9000120 · `sudo task phase N` يحدّث `/usr/local/bin/task` من المستودع تلقائيًا إن اختلف.
+
 **دروس المرحلة 1 (التسليم):** أطلب من المساعد دائمًا أن يبني سكربت المرحلة بحيث يشغّل `tsc` و`jest` و`e2e` داخل الحاويات قبل القبول — فبيئته قد لا تصل إلى سجل npm. · ترحيلات Prisma تُكتب يدويًا بنمط Prisma ثم يثبتها `migrate diff --exit-code` على الخادم. · سكربت المرحلة يعمل بـ sudo لكنه يسحب git بصفة مالك المجلد (`devadmin`) حتى لا تتلوّث ملفات `.git` بملكية root.
 
 **دروس المرحلة 0:** `grep` بلا نتائج داخل `pipefail` يُسقط العملية كلها → `|| true` · لا تُنشئ ipset بـ `-exist` إن اختلفت المعاملات عن مجموعة قائمة → افحص `ipset list -n` أولًا · nginx 1.24: `http2` داخل `listen` · عند حذف الخادم وإعادة إنشائه بنفس النطاق: `ssh-keygen -R "[iat.sa]:2244"` على ويندوز.
@@ -178,8 +220,8 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
 | # | المرحلة | المخرَج | الأمر |
 |---|---|---|---|
 | **0** | **تجهيز الخادم** ✅ منفَّذة | خادم مؤمَّن + HTTPS + WAF + Docker | `sudo bash scripts/00-server.sh` ثم `--finish` ثم `--status` |
-| **1** | الأساس 🟡 مكتوبة — بانتظار التشغيل | Monorepo + مصادقة + هيكل تنظيمي + RBAC + حقول السعة | `task deploy && sudo task phase 1` |
-| **2** | المهام | CRUD + إسناد متعدد + فرعية + تعليقات + مرفقات + الحجم والتوقيت | `sudo task phase 2` |
+| **1** | الأساس ✅ منفَّذة | Monorepo + مصادقة + هيكل تنظيمي + RBAC + حقول السعة | `task deploy && sudo task phase 1` |
+| **2** | المهام 🟡 الكود مسلَّم | CRUD + إسناد متعدد + فرعية + تعليقات + مرفقات + الحجم والتوقيت | `task deploy && sudo task phase 2` |
 | **3** | التصنيف والحالات | أنواع + حالات لكل إدارة + عرضي/دوري + الفتيل القصير + WorkLog مشتق | `sudo task phase 3` |
 | **4** | العروض | Kanban + قائمة + تقويم + فلاتر + WebSocket | `sudo task phase 4` |
 | **5** | الإشعارات | BullMQ + In-App + Email + التفضيلات | `sudo task phase 5` |
@@ -235,7 +277,7 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
 الخلفية؛ `task verify` ينجح بالكامل.
 ```
 
-### 7.ج المرحلة 2 — المهام (الـprompt الجاهز)
+### 7.ج المرحلة 2 — المهام 🟡 (الكود مسلَّم؛ هذا الـprompt للمرجع)
 
 ```text
 مرفق PLAN.md (1.2) و HANDOFF.md (2.3) و prototype.html. المرحلة 1 منفَّذة على iat.sa (sudo task phase 1 نجح
@@ -265,7 +307,38 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
 تسجيل الحجم والتوقيت لكل مهمة، و`sudo task verify` ينجح.
 ```
 
-### 7.د قالب أي مرحلة تالية
+### 7.د المرحلة 3 — التصنيف والحالات القابلة للتخصيص (الـprompt الجاهز)
+
+```text
+مرفق PLAN.md (1.2) و HANDOFF.md (2.4) و prototype.html. المرحلتان 1 و2 منفَّذتان على iat.sa (sudo task phase 2 نجح
+و task verify ينجح). الكود على GitHub (ibraabdu1574-oss/task-system). نبني المرحلة 3 فقط.
+
+التزم بقاعدة التنفيذ (HANDOFF القسم 3): كل الملفات دفعة واحدة + أمر تشغيل واحد.
+ابنِ فوق HANDOFF القسمين 4.هـ و4.و والقرارات (م2) في القسم 5 (نفس الأنماط: @Require + فحص موضعي في الخدمة،
+@Audit، DTOs بـ class-validator، الأنواع في packages/shared، task-scope.ts لنطاق الرؤية، هوية prototype.html).
+
+المطلوب (PLAN القسم 18 — المرحلة 3):
+- Prisma: TaskType (عام أو لكل إدارة، يديره مسؤول المتابعة) + TaskStatus القابلة للتخصيص لكل إدارة
+  (nameAr/nameEn/color/order/category/isActive + latenessKind للحالات من فئة overdue) + Task.taskTypeId و Task.statusId
+  و Task.latenessKind؛ تبقى Task.state مشتقة من فئة الحالة. مجموعة حالات افتراضية عامة تُبذر وتُنسخ لأي إدارة عند أول تخصيص.
+  + WorkLog (userId/taskId/category/hours/logDate/source) + ترحيل يدوي بنمط Prisma + ترحيل بيانات للمهام القائمة (state → statusId).
+- API: CRUD للأنواع والحالات (مسؤول المتابعة/مدير الإدارة ضمن إدارته، الرئيس للعام)، تغيير حالة المهمة عبر statusId
+  (مع تحديث state/startedAt/completedAt وتعبئة WorkLog مشتق source=derived عند الانتقال من in_progress)،
+  توزيع المهام عبر الإدارات (الإسناد لجهة خارج نطاق الفاعل يُسمح للمدير العام/الرئيس، وتتبّع مسار المهمة بين الجهات)،
+  «كل جهة ترى الموجّه إليها فقط» (مراجعة task-scope.ts)، اقتراح «الفتيل القصير» (dueDate − اليوم < عتبة الإدارة ⇒ adhoc)
+  كاقتراح يعيده GET /tasks/suggest-category ويُثبّته المستخدم أو يغيّره. إجراءات جديدة في shared: taskTypes.manage · taskStatuses.manage · worklog.read.
+- الواجهة: إعدادات الأنواع والحالات لكل إدارة (#page-settings)، فلترة المهام بالنوع/الحالة، تغيير الحالة من قائمة حالات الإدارة
+  بألوانها، شارة «متأخر داخلي/خارجي»، اقتراح التصنيف في نموذج الإنشاء.
+- اختبارات: وحدة لاشتقاق state/WorkLog من انتقالات الحالة والفتيل القصير + e2e لإدارة الحالات ضمن الإدارة وتوزيع المهام بين الإدارات.
+- scripts/phases/03-statuses.sh على غرار 02-tasks.sh (ترحيل + ترحيل بيانات + بذرة حالات + tsc + jest + e2e + قبول HTTPS + verify).
+
+قيود البيئة: أي منفذ حاوية على 127.0.0.1 فقط؛ لا تعطيل للـWAF؛ لا أسرار في git؛ لا package-lock بعد.
+
+معايير القبول (PLAN): مسؤول المتابعة يضيف/يعدّل الأنواع والحالات (لكل إدارة حالاتها)، النظام يفرّق بين المتأخر الداخلي
+والخارجي، كل جهة ترى الموجّه إليها فقط، اقتراح تصنيف العرضي تلقائيًا مع إمكانية التغيير، و`sudo task verify` ينجح.
+```
+
+### 7.هـ قالب أي مرحلة تالية
 
 ```text
 مرفق PLAN.md و HANDOFF.md. أكملنا حتى المرحلة <N-1>. نبني المرحلة <N> فقط.
@@ -284,4 +357,4 @@ apps/web/                  Next.js 14 App Router + Tailwind — هوية prototy
 
 ---
 
-*آخر تحديث: 2026-10-20 — الإصدار 2.3: كود المرحلة 1 مسلَّم، بانتظار `sudo task phase 1`. الإصدار 2.2: المرحلة 0 منفَّذة؛ `00-server.sh` على مواصفات التحصين المعتمدة. الإصدار 2.1: PWA بدل التطبيق الأصلي · Web Push بمفاتيح VAPID · خادم الإنتاج بنطاق حقيقي وشهادة موثوقة (شرط PWA) · نقل الكود عبر متصفح GitHub و`github.dev` بلا git على ويندوز.*
+*آخر تحديث: 2026-10-21 — الإصدار 2.4: كود المرحلة 2 مسلَّم، بانتظار `sudo task phase 2`. الإصدار 2.3: كود المرحلة 1 مسلَّم. الإصدار 2.2: المرحلة 0 منفَّذة؛ `00-server.sh` على مواصفات التحصين المعتمدة. الإصدار 2.1: PWA بدل التطبيق الأصلي · Web Push بمفاتيح VAPID · خادم الإنتاج بنطاق حقيقي وشهادة موثوقة (شرط PWA) · نقل الكود عبر متصفح GitHub و`github.dev` بلا git على ويندوز.*

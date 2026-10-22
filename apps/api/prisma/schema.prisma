@@ -1,5 +1,5 @@
-// مخطط قاعدة البيانات — المرحلة 1 (المستخدم، الهيكل، السعة، التدقيق)
-// بقية النماذج (المهام، الحالات، الانحراف…) تُضاف في مراحلها حسب PLAN.md القسم 5.
+// مخطط قاعدة البيانات — المرحلة 1 (المستخدم، الهيكل، السعة، التدقيق) + المرحلة 2 (المهام)
+// بقية النماذج (الحالات القابلة للتخصيص، الانحراف…) تُضاف في مراحلها حسب PLAN.md القسم 5.
 
 generator client {
   provider = "prisma-client-js"
@@ -57,6 +57,12 @@ model User {
   passwordHistory   PasswordHistory[]
   leaves            Leave[]
   auditLogs         AuditLog[]
+  // ── المرحلة 2 ──
+  createdTasks      Task[]           @relation("TaskCreator")
+  taskAssignments   TaskAssignment[]
+  comments          Comment[]
+  attachments       Attachment[]
+  taskActivities    TaskActivity[]
 
   @@index([generalAdminId])
   @@index([administrationId])
@@ -114,6 +120,7 @@ model Administration {
   manager      User?                 @relation("AdminManager", fields: [managerId], references: [id], onDelete: SetNull)
   sections     Section[]
   members      User[]                @relation("AdminMembers")
+  sizePresets  SizePresetConfig[]
 
   @@unique([generalAdminId, name])
   @@index([generalAdminId])
@@ -171,4 +178,160 @@ model AuditLog {
   @@index([timestamp])
   @@index([userId])
   @@index([entity, entityId])
+}
+
+// ═══════════════════════════ المرحلة 2 — المهام ═══════════════════════════
+
+enum TaskCategory {
+  routine
+  adhoc
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+/// الفئة السلوكية للحالة (PLAN 9.أ) — المرحلة 3 تضيف TaskStatus القابلة للتخصيص وتربطها بهذه الفئة
+enum TaskState {
+  not_started
+  in_progress
+  done
+}
+
+enum SizePreset {
+  daily
+  weekly
+  long
+}
+
+enum AssigneeType {
+  user
+  section
+  administration
+  generalAdmin
+}
+
+model Task {
+  id             String       @id @default(uuid())
+  /// رقم قصير متسلسل للعرض (#1048)
+  seq            Int          @unique @default(autoincrement())
+  title          String
+  description    String?
+  category       TaskCategory
+  priority       TaskPriority @default(medium)
+  state          TaskState    @default(not_started)
+  dueDate        DateTime?    @db.Date
+  // ── التقاط مبكّر لمحرك الانحراف (PLAN 9.1 و9.4) — حقول فقط، بلا حساب ──
+  sizePreset     SizePreset?
+  estimatedHours Float? // يُشتق من sizePreset عبر SizePresetConfig، ويمكن تجاوزه يدويًا
+  startedAt      DateTime? // أول انتقال إلى in_progress
+  completedAt    DateTime? // آخر انتقال إلى done
+  /// المهام الفرعية ذاتية المرجع (مستوى واحد)
+  parentTaskId   String?
+  /// موقع المهمة في الشجرة (من موقع منشئها أو ما حدّده ضمن نطاقه) — أساس نطاق الرؤية
+  generalAdminId   String?
+  administrationId String?
+  sectionId        String?
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  createdBy   User             @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  parent      Task?            @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks    Task[]           @relation("Subtasks")
+  assignments TaskAssignment[]
+  comments    Comment[]
+  attachments Attachment[]
+  activities  TaskActivity[]
+
+  @@index([parentTaskId])
+  @@index([createdById])
+  @@index([state])
+  @@index([dueDate])
+  @@index([generalAdminId])
+  @@index([administrationId])
+  @@index([sectionId])
+}
+
+/// الإسناد المتعدد متعدد الأنواع. موقع الجهة في الشجرة يُحفظ مع الإسناد ليُحسب نطاق الرؤية باستعلام واحد.
+model TaskAssignment {
+  id           String       @id @default(uuid())
+  taskId       String
+  assigneeType AssigneeType
+  assigneeId   String
+  generalAdminId   String?
+  administrationId String?
+  sectionId        String?
+  userId           String?
+  assignedById String?
+  createdAt    DateTime     @default(now())
+
+  task Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, assigneeType, assigneeId])
+  @@index([userId])
+  @@index([sectionId])
+  @@index([administrationId])
+  @@index([generalAdminId])
+}
+
+/// ترجمة الحجم إلى ساعات — افتراضي عام (administrationId = null) وقابل للضبط لكل إدارة
+model SizePresetConfig {
+  id               String     @id @default(uuid())
+  administrationId String?
+  size             SizePreset
+  hours            Float
+  updatedAt        DateTime   @updatedAt
+
+  administration Administration? @relation(fields: [administrationId], references: [id], onDelete: Cascade)
+
+  @@unique([administrationId, size])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  taskId    String
+  authorId  String
+  content   String
+  createdAt DateTime @default(now())
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([taskId, createdAt])
+}
+
+/// المرفقات: الملف خارج الجذر العام باسم عشوائي (storedName)، والاسم الأصلي للعرض فقط
+model Attachment {
+  id           String   @id @default(uuid())
+  taskId       String
+  uploadedById String
+  fileName     String
+  storedName   String   @unique
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+}
+
+/// سجل نشاط المهمة — كل تغيير (إنشاء/تعديل/حالة/إسناد/تعليق/مرفق)
+model TaskActivity {
+  id        String   @id @default(uuid())
+  taskId    String
+  actorId   String?
+  type      String
+  data      Json?
+  createdAt DateTime @default(now())
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
 }

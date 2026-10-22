@@ -39,6 +39,13 @@ export const ACTIONS = [
   'leaves.read',
   'leaves.manage',
   'audit.read',
+  // ── المرحلة 2: المهام ──
+  'tasks.read',    // قراءة المهام ضمن نطاق الرؤية (الموظف: المسند إليه فقط)
+  'tasks.create',  // إنشاء مهمة (الموظف: لنفسه أو فرعية من مهمة يراها)
+  'tasks.update',  // تعديل بيانات المهمة وحالتها، وضبط ساعات الأحجام
+  'tasks.assign',  // الإسناد لعدة جهات (ليس للموظف)
+  'tasks.comment', // التعليقات
+  'tasks.attach',  // المرفقات
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -145,4 +152,148 @@ export interface OrgTree {
   /** مستخدمون بلا موقع (مثل الرئيس التنفيذي) */
   unassigned: OrgTreeUser[];
   counts: { generalAdmins: number; administrations: number; sections: number; users: number };
+}
+
+/* ═══════════════════════════ المرحلة 2 — المهام ═══════════════════════════ */
+
+export const TASK_CATEGORIES = ['routine', 'adhoc'] as const;
+export type TaskCategory = (typeof TASK_CATEGORIES)[number];
+export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = { routine: 'دورية', adhoc: 'عرضية' };
+
+export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = { low: 'منخفضة', medium: 'متوسطة', high: 'عالية' };
+
+/**
+ * حالة المهمة في المرحلة 2 = الفئة السلوكية فقط (PLAN 9.أ).
+ * الحالات القابلة للتخصيص لكل إدارة (TaskStatus) تُضاف في المرحلة 3 وتُربط بهذه الفئات.
+ */
+export const TASK_STATES = ['not_started', 'in_progress', 'done'] as const;
+export type TaskState = (typeof TASK_STATES)[number];
+export const TASK_STATE_LABELS: Record<TaskState, string> = { not_started: 'لم تبدأ', in_progress: 'قيد التنفيذ', done: 'مكتملة' };
+
+/** حجم المهمة → ساعات افتراضية (PLAN 9.1) — التقاط مبكّر بلا محرك */
+export const SIZE_PRESETS = ['daily', 'weekly', 'long'] as const;
+export type SizePreset = (typeof SIZE_PRESETS)[number];
+export const SIZE_PRESET_LABELS: Record<SizePreset, string> = { daily: 'يومية', weekly: 'أسبوع أو نصفه', long: 'أكثر من أسبوع' };
+export const DEFAULT_SIZE_PRESET_HOURS: Record<SizePreset, number> = { daily: 4, weekly: 16, long: 40 };
+
+export const ASSIGNEE_TYPES = ['user', 'section', 'administration', 'generalAdmin'] as const;
+export type AssigneeType = (typeof ASSIGNEE_TYPES)[number];
+export const ASSIGNEE_TYPE_LABELS: Record<AssigneeType, string> = { user: 'موظف', section: 'قسم', administration: 'إدارة', generalAdmin: 'إدارة عامة' };
+
+/** سياسة المرفقات (تُعرض في الواجهة وتُفرض في الخلفية) */
+export const ATTACHMENT_POLICY = {
+  maxSizeMb: 10,
+  /** الامتدادات المسموحة (صغيرة الحروف) */
+  allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'txt', 'csv', 'md', 'docx', 'xlsx', 'pptx', 'zip'],
+} as const;
+
+export const TASK_ACTIVITY_TYPES = [
+  'created', 'updated', 'state_changed', 'assigned', 'unassigned',
+  'subtask_created', 'comment_added', 'comment_deleted', 'attachment_added', 'attachment_deleted', 'deleted',
+] as const;
+export type TaskActivityType = (typeof TASK_ACTIVITY_TYPES)[number];
+
+export interface UserRef {
+  id: string;
+  name: string;
+  employeeNo: string;
+}
+
+export interface AssignmentInput {
+  assigneeType: AssigneeType;
+  assigneeId: string;
+}
+
+export interface TaskAssignmentView extends AssignmentInput {
+  id: string;
+  /** اسم الجهة بعد الحل (موظف/قسم/إدارة/إدارة عامة) */
+  name: string;
+  /** سطر وصفي: دور الموظف وقسمه، أو «كل موظفي القسم»… */
+  detail: string;
+  createdAt: string;
+}
+
+export interface TaskSummary {
+  id: string;
+  seq: number;
+  title: string;
+  category: TaskCategory;
+  priority: TaskPriority;
+  state: TaskState;
+  dueDate: string | null;
+  sizePreset: SizePreset | null;
+  estimatedHours: number | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  parentTaskId: string | null;
+  createdBy: UserRef;
+  createdAt: string;
+  updatedAt: string;
+  assignments: TaskAssignmentView[];
+  subtaskCount: number;
+  subtaskDoneCount: number;
+  commentCount: number;
+  attachmentCount: number;
+}
+
+export interface CommentView {
+  id: string;
+  content: string;
+  author: UserRef;
+  createdAt: string;
+}
+
+export interface AttachmentView {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+  uploadedBy: UserRef;
+  createdAt: string;
+}
+
+export interface TaskActivityView {
+  id: string;
+  type: TaskActivityType;
+  data: Record<string, unknown> | null;
+  actor: UserRef | null;
+  createdAt: string;
+}
+
+export interface TaskDetail extends TaskSummary {
+  description: string | null;
+  generalAdminId: string | null;
+  administrationId: string | null;
+  sectionId: string | null;
+  parent: { id: string; seq: number; title: string } | null;
+  subtasks: TaskSummary[];
+  comments: CommentView[];
+  attachments: AttachmentView[];
+  activities: TaskActivityView[];
+  /** ما يستطيعه الفاعل الحالي على هذه المهمة (للواجهة فقط — الخلفية تعيد الفحص) */
+  can: { manage: boolean; assign: boolean; act: boolean };
+}
+
+export interface TaskListResponse {
+  items: TaskSummary[];
+  total: number;
+}
+
+export interface TaskStats {
+  total: number;
+  notStarted: number;
+  inProgress: number;
+  done: number;
+  overdue: number;
+  /** المسندة إلى الفاعل مباشرةً */
+  mine: number;
+}
+
+export interface SizePresetRow {
+  size: SizePreset;
+  hours: number;
+  /** null = الافتراضي العام */
+  administrationId: string | null;
 }

@@ -121,4 +121,53 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .tree .node .k { @apply rounded px-1.5 text-[11px] text-ink3; background: var(--surface2); }
   .tree .node .who { @apply ms-auto text-xs text-ink3; }
   .tree .node.me { border-color: var(--accent); }
+
+  /* ═══ المرحلة 2 — المهام (page-tasks / page-task / page-new في prototype.html) ═══ */
+  .ph { @apply flex flex-wrap items-center gap-x-3.5 gap-y-2.5; }
+  .ph .spacer { @apply flex-1; }
+  .crumb { @apply text-xs text-ink3; }
+  .crumb a { @apply text-accent no-underline hover:underline; }
+  .two { @apply grid gap-4 lg:grid-cols-2; }
+  .three { @apply grid gap-4 lg:grid-cols-[2fr_1fr]; }
+  .filters { @apply flex flex-wrap items-center gap-2; }
+  .filters select, .filters input { @apply rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[13px] text-ink; }
+  .tbl { @apply overflow-x-auto rounded-[10px] border border-line bg-surface; }
+  .tbl table { @apply w-full border-collapse text-[13px]; }
+  .tbl th, .tbl td { @apply border-b border-line px-2.5 py-2 text-start align-middle; }
+  .tbl th { @apply text-xs font-medium text-ink3; background: var(--surface2); }
+  .tbl tr:last-child td { @apply border-b-0; }
+  .tbl td.num { @apply tabular-nums; }
+  .tbl tr.link { @apply cursor-pointer; }
+  .tbl tr.link:hover td { background: var(--surface2); }
+  .late { color: var(--bad) !important; font-weight: 600; }
+  .dot { @apply inline-block h-2 w-2 rounded-full; background: currentColor; }
+  .desc { @apply max-w-[70ch] text-ink2; white-space: pre-wrap; }
+  .sec { @apply grid gap-2.5 border-t border-line pt-3.5; }
+  .sec-h { @apply flex flex-wrap items-center justify-between gap-2.5; }
+  .list { @apply grid gap-1.5; }
+  .row.link { @apply cursor-pointer; }
+  .row.link:hover { border-color: var(--accent); }
+  .kv { @apply m-0 grid gap-x-[18px] gap-y-2.5; grid-template-columns: 1fr; }
+  .kv div { @apply grid gap-0.5; }
+  .kv dt { @apply text-xs text-ink3; }
+  .kv dd { @apply m-0 font-medium; }
+  .comment { @apply grid gap-1; }
+  .comment .who { @apply font-semibold; }
+  .comment .when { @apply ms-2 text-xs text-ink3; }
+  .tl { @apply m-0 grid list-none gap-1.5 p-0 text-[13px] text-ink2; }
+  .tl time { @apply me-2 tabular-nums text-ink3; }
+  .field textarea { @apply w-full rounded-lg border border-line bg-bg p-2 text-ink; resize: vertical; }
+  textarea.plain { @apply w-full rounded-lg border border-line bg-bg p-2 text-ink; resize: vertical; }
+  /* اختيار الحجم: ثلاث بطاقات */
+  .sizes { @apply grid gap-2 sm:grid-cols-3; }
+  .size-opt { @apply grid cursor-pointer gap-0.5 rounded-lg border border-line bg-bg px-3 py-2 text-start; }
+  .size-opt:hover { border-color: var(--accent); }
+  .size-opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .size-opt b { @apply text-[13px]; }
+  .size-opt span { @apply text-xs text-ink3; }
+  /* قائمة اقتراحات الإسناد */
+  .picker { @apply relative; }
+  .picker .menu { @apply absolute inset-x-0 top-full z-20 mt-1 grid max-h-64 gap-0.5 overflow-auto rounded-lg border border-line bg-surface p-1 shadow-lg; }
+  .picker .menu button { @apply flex items-center gap-2 rounded-md px-2 py-1.5 text-start text-[13px] text-ink; }
+  .picker .menu button:hover { background: var(--surface2); }
 }

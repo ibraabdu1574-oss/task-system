@@ -16,6 +16,8 @@ export interface AppConfig {
   };
   authSource: 'local' | 'ldap';
   swaggerEnabled: boolean;
+  /** مجلد المرفقات — خارج أي جذر عام؛ لا يُخدَم مباشرةً أبدًا */
+  attachmentsDir: string;
 }
 
 function required(name: string): string {
@@ -50,6 +52,7 @@ export function loadConfig(): AppConfig {
     },
     authSource: (process.env.AUTH_SOURCE as AppConfig['authSource']) || 'local',
     swaggerEnabled: nodeEnv !== 'production',
+    attachmentsDir: process.env.ATTACHMENTS_DIR || '/app/data/attachments',
   };
 }
 
