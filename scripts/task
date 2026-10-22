@@ -135,6 +135,13 @@ cmd_deploy() {
   compose_valid
   dc up -d --build --remove-orphans
   cmd_migrate
+  # بعد إعادة البناء تحتاج الحاويات دقيقة أو دقيقتين (health: starting) — ننتظرها قبل الفحص حتى لا يفشل verify زورًا
+  local s
+  for s in api web; do
+    svc_defined "$s" || continue
+    retry 100 3 svc_healthy "$s" || die "الخدمة $s لم تصبح جاهزة خلال 5 دقائق — اكتب: task logs $s"
+    ok "$s جاهزة"
+  done
   cmd_verify
 }
 
